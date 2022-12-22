@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1639204539371.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "5D17AE03",
+    "lastKnownWriteTime" : 1590681320,
+    "last_content_update" : 1590681320,
+    "path" : "G:/Analyst Folders/Lillian/bbmR/R/get_fy.R",
+    "project_path" : null,
+    "properties" : {
+        "cursorPosition" : "13,0",
+        "scrollLine" : "0"
+    },
+    "relative_order" : 6,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

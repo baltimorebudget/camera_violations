@@ -1,0 +1,293 @@
+---
+title: "Camera Violations"
+output: pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+
+# setting rmarkdown options
+
+# load packages
+source("G:/Analyst Folders/Lillian/- R/packages.R")
+library(ggmap)
+library(knitr)
+# load custom BBMR functions
+source("G:/Analyst Folders/Lillian/- R/bbmr_functions.R")
+
+# load data
+# load("Data/Camera Violations 2018-12-03.Rdata")
+
+internal <- list(
+  file = get_last_mod("M:", "csv", ignore.case = TRUE))
+
+raw <- import(internal$file)
+```
+
+```{r cleaning}
+
+# uncollectible - when there's a technical problem and the ticket was issued in error
+# abated - person complains and ticket is waived (like if they got out of the way of an ambulance)
+
+data <- raw %>%
+  set_colnames(tools::toTitleCase(tolower(names(.)))) %>%
+  mutate_at(vars(ends_with("DATE")), ymd) %>% 
+  mutate(Type = case_when(`Viol Code` == 30 ~ "Red light",
+                          `Viol Code` == 31 ~ "Right on red",
+                          `Viol Code` == 32 ~ "Fixed camera speed",
+                          `Viol Code` == 33 ~ "Mobile camera speed",
+                          `Viol Code` == 34 ~ "Fixed camera speed (diff rate)",
+                          `Viol Code` == 35 ~ "Work zone speed violation",
+                          `Viol Code` == 36 ~ "Comm vehicle height - warning",
+                          `Viol Code` == 37 ~ "Comm vehicle height - 1st offense",
+                          `Viol Code` == 38 ~ "Comm vehicle height - 2nd offense"),
+         Fees = case_when(`Viol Code` %in% c(30, 31) ~ 75,
+                          `Viol Code` %in% c(32, 33, 34, 35) ~ 40,
+                          `Viol Code` == 36 ~ 0,
+                          `Viol Code` == 37 ~ 125,
+                          `Viol Code` == 38 ~ 250),
+         Status = case_when(Status == "A" ~ "Abated",
+                            Status == "H" ~ "Hold",
+                            Status == "O" ~ "Open",
+                            Status == "P" ~ "Paid",
+                            Status == "U" ~ "Uncollectible"),
+        `Days to Paid` = difftime(`Paid Date`, `Viol Date`, "days"),
+        `Months to Paid` = ceiling(as.numeric(`Days to Paid`)/30),
+        `Viol Month` = ymd(paste0(year(`Viol Date`), "-", month(`Viol Date`), "-01")))
+
+deployed <- data %>%
+  group_by(Location) %>%
+  summarize(`Month Deployed` = min(`Viol Month`)) 
+
+data %<>%
+  left_join(deployed) %>%
+  # how old was this camera when the violation was issued?
+  mutate(`Months Since Deployed` = ceiling((`Viol Date` - `Month Deployed`)/30))
+  # filter(!(month(`Viol Date`) == 1 & year(`Viol Date`) == 2019))
+```
+
+
+# Camera Deployment
+```{r deploy}
+deployed.summary <- deployed %>%
+  ungroup %>%
+  count(`Month Deployed`) %>%
+  rename(`# of cameras` = n)
+
+```
+
+As of `r ymd(str_extract(internal$file, "[0-9]+"))`, there are `r length(unique(data$Location))` cameras issuing tickets. A median of `r median(deployed$'# of cameras')` cameras have been deployed each month since the start of the program.
+
+`r kable(deployed.summary, booktabs = TRUE)`
+
+\newpage
+
+# Locations
+
+The map below shows approximate locations of the cameras. If there are multiple types of cameras or tickets issued at an intersection, those points are shown individually.
+
+```{r map, fig.width=8}
+# locations <- data %>%
+#   extract(c("Location", "Type")) %>%
+#   mutate(Type = ifelse(grepl("Comm vehicle height", Type), "Comm vehicle height", Type)) %>%
+#   distinct() %>%
+#   mutate(`Clean Location` = paste(tools::toTitleCase(tolower(gsub(
+#     " BLK| EB| WB| SB| NB", "", Location))), "Baltimore, MD"))
+# # fix truncated street names
+# locations$`Clean Location` %<>%
+#   gsub("\\sNor[th]*\\sBaltimore", " North Ave Baltimore", .) %>%
+#   gsub("\\sReisters[town]*\\sBaltimore", " Reisterstown Rd Baltimore", .) %>%
+#   gsub("\\sCold Spr[ing]*\\sBaltimore", " Cold Spring Ln Baltimore", .) %>%
+#   gsub("\\sBelved[ere]*\\sBaltimore", " Belvedere Ave Baltimore", .) %>%
+#   gsub("\\sPark Heigh[ts]*\\sBaltimore", " Park Heights Ave Baltimore", .) %>%
+#   gsub("\\sGwynns Fa[lls]*\\sBaltimore", " Gwynns Falls Pky Baltimore", .)
+# 
+# locations %<>%
+#   bind_cols(geocode(locations$`Clean Location`, source = "dsk"))
+# export(locations, "Inputs/Cameras Geocoded.csv")
+
+locations <- import("Inputs/Cameras Geocoded.csv")
+
+borders <- c(bottom = 39.197361,
+             top = 39.372099,
+             left = -76.711477,
+             right = -76.529117)
+
+map.locations <- ggmap(get_stamenmap(borders, maptype = "toner-lite", zoom = 12, scale = 1),
+                    extent="device", maprange = FALSE) +
+  geom_jitter(data = locations, aes(x = lon, y = lat, color = Type), size = 2, width = 0.005) +
+  theme(legend.position = "top")
+
+print(map.locations)
+```
+
+# Most violations by location
+Below are the 10 locations with the most violations.
+
+```{r violation loc}
+top.loc <- data %>%
+  group_by(Location) %>%
+  count() %>%
+  arrange(-n) %>%
+  left_join(data %>%
+  group_by(Location) %>%
+  summarize(`Month Deployed` = min(`Viol Month`))) %>%
+  head(10)
+```
+
+`r kable(top.loc, booktabs = TRUE)`
+
+\newpage
+
+# Payment status over time
+```{r payment status}
+status <- data %>%
+  group_by(`Viol Month`) %>%
+  count(Status) %>%
+  spread(Status, n) %>%
+  bind_cols(data %>%
+    group_by(`Viol Month`) %>%
+    count() %>%
+    ungroup() %>%
+    select(`Total Viol` = n)) %>%
+  mutate(`% Paid` = round(Paid / `Total Viol`, 2)) %>%
+  filter(!is.na(`Viol Month`))
+```
+
+`r kable(status, booktabs = TRUE)`
+
+\newpage
+
+# Collections
+The median number of days between the violation and payment of the ticket is `r median(data$'Days to Paid', na.rm = TRUE)`. The chart below shows that most tickets are paid within a month of the date they are issued.
+
+```{r summary}
+
+collections <- ggplot(data, aes(x = `Months to Paid`)) + 
+  geom_bar(color = "white") +
+  labs(y = "# of tickets paid") +
+  scale_x_continuous(breaks = pretty(data$`Days to Paid`/30, n = 20)) +
+  scale_y_continuous(labels = scales::comma_format()) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.title = element_blank(),
+        strip.text.x = element_text(size = 10, face = "bold"))
+
+print(collections)
+
+```
+
+\newpage
+
+# Revenue
+```{r revenue}
+revenue <- data %>%
+  group_by(`Viol Month`, Status) %>%
+  summarize(Fees = sum(Fees, na.rm = TRUE)) %>%
+  spread(Status, Fees) %>%
+  bind_cols(data %>%
+    group_by(`Viol Month`) %>%
+    summarize(`Total Due` = sum(Fees, na.rm = TRUE))  %>%
+    ungroup() %>%
+    select(`Total Due`)) %>%
+  mutate_at(vars(Abated:`Total Due`), replace_na, 0) %>%
+  mutate_at(vars(Abated:`Total Due`), scales::dollar_format())
+
+```
+
+`r kable(revenue, booktabs = TRUE)`
+
+```{r test}
+
+# setting 2nd month as baseline
+test <- data %>%
+  group_by(Location, Type, `Viol Month`) %>%
+  count(`Months Since Deployed`) %>%
+  left_join(
+    data %>%
+    group_by(Location) %>%
+    count(`Months Since Deployed`) %>%
+    filter(n == max(n)) %>%
+    select(Location, Baseline = n)
+  ) %>%
+  ungroup() %>%
+  mutate(`% of Baseline` = n / Baseline,
+         Type = ifelse(grepl("Comm vehicle height", Type), "Comm vehicle height", Type),
+         Type = ifelse(grepl("Red", Type, ignore.case = TRUE), "Red light", Type),
+         `Viol Month` = month(`Viol Month`))
+
+
+baseline.maxn <- test %>%
+  ggplot(aes(x = `Months Since Deployed`, y = `% of Baseline`, group = `Months Since Deployed`)) + 
+  geom_boxplot(fill = "skyblue") +
+  # geom_text(aes(label = ifelse(n == max(n) | n == median(n) | n == min(n), n, '')), nudge_y = .05) +
+  labs(y = "% of max month") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(breaks = pretty(test$`Months Since Deployed`, n = 15)) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.title = element_blank(),
+        strip.text.x = element_text(size = 10, face = "bold")) +
+  facet_grid(rows = vars(Type))
+
+baseline.month <- test %>%
+  ggplot(aes(x = `Viol Month`, y = `% of Baseline`, group = `Viol Month`)) + 
+  geom_boxplot(fill = "skyblue") +
+  labs(y = "% of max month") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.title = element_blank(),
+        strip.text.x = element_text(size = 10, face = "bold")) +
+  facet_grid(rows = vars(Type))
+
+``` 
+
+<!-- # Violations by month -->
+
+<!-- Most cameras had the most violations within 2 months of their deployment. If we exclude the first month of deployment to account for cameras that may not have been installed for the full  -->
+
+```{r min max}
+max.mos <- data %>%
+  group_by(Location) %>%
+  count(`Months Since Deployed`) %>%
+  top_n(n=1) %>%
+  left_join(deployed) %>%
+  group_by(`Months Since Deployed`) %>%
+  count() %>%
+  rename(`Locations`= nn)
+
+max.graph <- ggplot(max.mos, aes(x = `Months Since Deployed`, y = Locations)) + 
+  geom_bar(color = "white", stat = "identity") +
+  labs(y = "# of camera locations") +
+  scale_x_continuous(breaks = pretty(max.mos$`Months Since Deployed`, n = 15)) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.title = element_blank(),
+        strip.text.x = element_text(size = 10, face = "bold"))
+
+min.mos <- data %>%
+  group_by(Location) %>%
+  count(`Months Since Deployed`) %>%
+  top_n(n=-2) %>%
+  filter(!`Months Since Deployed` %in% c(0, 1),
+         min(`Months Since Deployed`) == `Months Since Deployed`) %>%
+  left_join(deployed) %>%
+  group_by(`Months Since Deployed`) %>%
+  count() %>%
+  rename(`Locations`= nn)
+
+min.graph <- ggplot(min.mos, aes(x = `Months Since Deployed`, y = Locations)) + 
+  geom_bar(color = "white", stat = "identity") +
+  labs(y = "# of camera locations") +
+  scale_x_continuous(breaks = pretty(min.mos$`Months Since Deployed`, n = 15)) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major.x = element_blank(),
+        legend.title = element_blank(),
+        strip.text.x = element_text(size = 10, face = "bold"))
+```

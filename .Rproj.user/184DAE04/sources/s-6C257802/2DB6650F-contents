@@ -1,0 +1,38 @@
+library(tidyverse)
+library(lubridate)
+library(rio)
+library(magrittr)
+library(bbmR)
+
+# Camera data ####
+camera.loc <- import("Inputs/Geocoded Cameras.csv") %>%
+  mutate_at(vars(c("lat", "lon")), as.numeric)
+
+cameras <- import("//balt-fileld-srv/legacy/BBMR CAMERA/BBMR_CSV_FILE_20190903.CSV")
+
+df <- cameras %>%
+  set_colnames(tools::toTitleCase(tolower(names(.)))) %>%
+  mutate_at(vars(contains("DATE")), ymd) %>%
+  mutate(Paid = !is.na(`Paid Date`),
+         `YYYY-MM` = paste0(year(`Viol Date`), "-",
+                            str_pad(month(`Viol Date`), 2, "left", "0")),
+         Type = case_when(`Viol Code` == 30 ~ "Red light/right on red",
+                          `Viol Code` == 31 ~ "Red light/right on red",
+                          `Viol Code` == 32 ~ "Fixed camera speed",
+                          `Viol Code` == 33 ~ "Mobile camera speed",
+                          `Viol Code` == 34 ~ "Fixed camera speed (diff rate)",
+                          `Viol Code` == 35 ~ "Work zone speed violation",
+                          `Viol Code` %in% 36:38 ~ "Comm vehicle height"),
+         `Days to Payment` = `Paid Date` - `Viol Date`)
+
+median <- df %>%
+  group_by(Location) %>%
+  summarize(`Median Days to Payment` = median(`Days to Payment`, na.rm = TRUE))
+
+issued <- df %>%
+  group_by(Type, Location, `YYYY-MM`) %>%
+  summarize(Count = n()) %>%
+  spread(`YYYY-MM`, Count) %>%
+  left_join(median)
+
+export_excel(issued, "Cameras", "Camera Violations 2019-09-03.xlsx", "new")

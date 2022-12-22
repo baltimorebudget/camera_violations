@@ -1,0 +1,49 @@
+library(tidyverse)
+library(lubridate)
+
+load("Data/Camera Violations 2018-12-03.Rdata")
+
+# This is how you normally input data
+# library(rio)
+# data <- import("test.xlsx")
+
+violations <- camera %>%
+  mutate_at(vars(ends_with("DATE")), ymd) %>% 
+  mutate(Fees = case_when(`VIOL CODE` %in% c(30, 31) ~ 75,
+                          `VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
+                          `VIOL CODE` == 36 ~ 0,
+                          `VIOL CODE` == 37 ~ 125,
+                          `VIOL CODE` == 38 ~ 250),
+         Month = ymd(paste0(year(`VIOL DATE`), "-", month(`VIOL DATE`), "-01")))
+
+summary <- violations %>%
+  count(LOCATION, `VIOL CODE`)
+
+summary <- violations %>%
+  group_by(LOCATION, `VIOL CODE`) %>%
+  summarize(Fees = sum(Fees, na.rm = TRUE))
+
+
+tag <- violations %>%
+  count(TAG, LOCATION, Fees) %>%
+  arrange(-n)
+
+tag.summary <- violations %>%
+  group_by(TAG) %>%
+  summarize(Fees = sum(Fees, na.rm = TRUE))
+
+decline <- violations %>%
+  filter(LOCATION == "2700 BLK GWYNNS FALLS PKY WB") %>%
+  count(Month)
+
+start.date <- violations %>%
+  group_by(LOCATION) %>%
+  summarize(Start = min(Month))
+
+start.summary <- start.date %>%
+  ungroup %>%
+  count(Start)
+  
+
+plot(decline)
+ggplot(aes(decline, ))

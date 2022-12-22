@@ -1,0 +1,254 @@
+# Compile one-pagers
+
+# Knits PDFs by service
+
+params <- list(
+  # target FY for which agency detail is being created, in YY format
+  fy = 19,
+  # most up-to-date line item file for target year
+  # G:/Fiscal Years/Fiscal 2019/Planning Year/8. BoE Phase/line_items_n_justifications_04032018.xls
+  line.item = "Inputs/Line Item.xlsx",
+  # file with info on actuals/budget for 2+ years prior to target year
+  historical = "G:/Fiscal Years/Historical Data/Multi-Year Data/Seven-Year Actuals (FY12-FY18) Full.xlsx"
+)
+
+###########################################################################
+
+source("G:/Analyst Folders/Lillian/- R/packages.R")
+source("G:/Analyst Folders/Lillian/- R/bbmr_functions.R")
+library(rmarkdown)
+library(knitr)
+library(kableExtra)
+
+# Import ####
+analysts <- import("G:/Analyst Folders/Lillian/- Ref/Analyst Assignments.xlsx") %>%
+  filter(!is.na(Analyst)) %>%
+  mutate(`Agency ID` = as.character(`Agency ID`))
+
+# Pulling out structured analyst input, and excluding notes added by analysts
+# Only standard tabs/cols will be extracted
+
+raw <- list(
+  # exclude temporary Excel files ~$
+  default = list.files("Inputs/Analysts/", "^[^~]*Test .* Default", full.names = TRUE, recursive = TRUE) %>%
+    map(import_list),
+  change = list.files("Inputs/Analysts/", "^[^~]*Test .* Change", full.names = TRUE, recursive = TRUE) %>%
+    map(import_list, rbind = TRUE, rbind_label = "File") %>%
+    map(select, `Program ID`, `Program Name`, `Changes or adjustments`, Amount, `Has service impacts?`) %>%
+    bind_rows())
+
+inputs <- list(
+    change = raw$change,
+    service.desc = import("Inputs/Service Descriptions.xlsx") %>%
+      select(`Service Description` = `Service Descriptions`, `Program ID` = X__9) %>%
+      fill(`Program ID`) %>%
+      filter(!(grepl("(MOSS)|(Copy)", `Program ID`)),
+             # get row number of those that have "Service Description" as the value,
+             # then grab the row 1 or 2 down
+             row_number() %in% c(grep("Service Description", `Service Description`) + 2,
+                                 # for the rare cases where there's only 1 row in between
+                                 (grep("Service Description", `Service Description`) + 1)),
+             !is.na(`Service Description`),
+             (!`Service Description` %in% c("(NULL)", "Note Text"))) %>%
+      mutate(`Program ID` = str_extract(`Program ID`, "[0-9]{3}")),
+    budget.items = map(raw$default,`[[`, "Major Budget Items") %>%
+      map(select, Service, `Service Name`, `Major Budget Items`), 
+    pm.notes = map(raw$default,`[[`, "Performance Measure Notes") %>%
+      map(select, Service, `Service Name`, `Performance Measure Notes`)) %>%
+  map(bind_rows)
+rm(raw)
+
+# see what's missing service descriptions
+# test2 <-gen.fund$line.item %>%
+#   distinct(`Agency Name`, `Program ID`, `Program Name`) %>%
+#   left_join(test) %>%
+#   filter(is.na(`Service Descriptions`))
+
+# Data from aggregate sources
+aggregate <- list(line.item = import(params$line.item) %>% 
+               # rename_cols currently can't grab names of list elements so can't lapply
+                     set_colnames(rename_cols(.)),
+                     # do I even need to summarize here?
+                     # group_by(`Agency Name`, `Program ID`, `Program Name`, `Objective Name`) %>%
+                     # summarize(Amount = sum(`FY19 BoE`, na.rm = TRUE)), 
+                  historical = import(params$historical) %>%
+                     set_colnames(rename_cols(.))) %>%
+            map(mutate_at, vars(ends_with("ID")), as.character)
+
+aggregate$line.item %<>%
+  left_join(analysts)
+
+pos.tabs <- readxl::excel_sheets(paste0("G:/Fiscal Years/Fiscal 20", params$fy,
+                                        "/Planning Year/8. BOE Phase/PositionsSalariesOpcs - BOE.xlsx"))
+
+agg.position <- list(target = import(paste0("G:/Fiscal Years/Fiscal 20", params$fy,
+                                        "/Planning Year/8. BOE Phase/PositionsSalariesOpcs - BOE.xlsx"),
+                                 # find the last tab that has the target FY in its name + BOE
+                                 which = max(grep(paste0(params$fy, " BoE"), pos.tabs))) %>%
+                          set_colnames(rename_cols(.)),
+                 current = import(paste0("G:/Fiscal Years/Fiscal 20", params$fy,
+                                         "/Planning Year/8. BOE Phase/PositionsSalariesOpcs - BOE.xlsx"),
+                                  which = max(grep(paste0(params$fy - 1, " BoE"), pos.tabs))) %>%
+                        set_colnames(rename_cols(.)),
+                 #2017 tab was formatted differently; when running for target yr 2020, make code consistent again
+                 last = import(paste0("G:/Fiscal Years/Fiscal 20", params$fy,
+                                         "/Planning Year/8. BOE Phase/PositionsSalariesOpcs - BOE.xlsx"),
+                                  which = max(grep(paste0(params$fy - 2), pos.tabs))) %>%
+                        set_colnames(rename_cols(.))) %>%
+  map(group_by, `Program ID`, `Fund Name`) %>%
+  map(count)
+rm(pos.tabs)
+
+position <- agg.position$target %>%
+  left_join(agg.position$current, by = c("Program ID", "Fund Name")) %>%
+  left_join(agg.position$last, by = c("Program ID", "Fund Name")) %>%
+  set_colnames(c("Program ID", "Fund Name", paste0("FY", params$fy, " Positions"),
+               paste0("FY", params$fy - 1, " Positions"), paste0("FY", params$fy - 2, " Positions")))
+
+historical <- aggregate$historical %>%
+  left_join(aggregate$line.item, by = c("Agency ID", "Agency Name",
+    "Program ID", "Program Name", "Activity ID", "Activity Name",
+    "Subactivity ID", "Subactivity Name", "Fund ID", "Fund Name",
+    "Detailed Fund ID", "Detailed Fund Name", "Object ID", "Object Name",
+    "Subobject ID", "Subobject Name")) %>%
+  select(`Program ID`, `Fund Name`, paste0("FY", params$fy - 2, " Net Actual"),
+         paste0("FY", params$fy - 1, " Adopted.y"), paste0("FY", params$fy, " BOE")) %>%
+  group_by(`Program ID`, `Fund Name`) %>%
+  summarize_at(vars(starts_with("FY")), sum, na.rm = TRUE) %>%
+  ungroup() %>%
+  left_join(position) %>%
+  mutate(FY17z = NA, FY18z = NA) %>% # blank cols for spacing
+  select(`Program ID`, `Fund Name`, order(colnames(.))) %>%
+  set_colnames(c("Program ID", "Fund Name",
+                 paste0("FY", params$fy - 2, " Dollars"), paste0("FY", params$fy - 2, " Positions"),
+                 "z1",
+                 paste0("FY", params$fy - 1, " Dollars"), paste0("FY", params$fy - 1, " Positions"),
+                 "z2",
+                 paste0("FY", params$fy, " Dollars"), paste0("FY", params$fy, " Positions")))
+
+# add the total row
+historical <- historical %>%
+  group_by(`Program ID`) %>%
+  summarize_at(vars(paste0("FY", params$fy - 2, " Dollars"):paste0("FY", params$fy, " Positions")),
+               sum, na.rm = TRUE) %>%
+  mutate(`Fund Name` = "TOTAL",
+         z1 = NA, z2 = NA) %>%
+  select(names(historical)) %>%
+  bind_rows(historical) %>%
+  mutate(`Fund Name` = factor(`Fund Name`,
+                      c("General", "Internal Service",
+                        "Convention Center Bond", "Conduit Enterprise",
+                        "Wastewater Utility", "Water Utility",
+                        "Stormwater Utility", "Loan and Guarantee Enterprise" ,
+                        "Parking Enterprise", "Parking Management",
+                        "Federal", "State", "Special", "TOTAL"),
+              labels = c("General", "Internal Service",
+                         "Convention Center Bond", "Conduit Enterprise",
+                         "Wastewater", "Water",
+                         "Stormwater", "Loan & Guar Enterprise" ,
+                         "Parking Enterprise", "Parking Mgmt",
+                         "Federal", "State", "Special", "TOTAL"))) %>%
+  mutate_at(vars(contains("Positions")), funs(replace(., is.na(.), 0))) %>%
+  mutate_at(.vars = vars(contains("Dollars")), .funs = funs(scales::dollar(., prefix = "", negative_parens = TRUE))) %>%
+  arrange(`Program ID`, `Fund Name`) %>%
+  # for formatting in the pdf
+  set_colnames(c("Program ID", "Fund Name", "Dollars", "Positions", " ", 
+                 "Dollars ", "Positions ", "  ", "Dollars  ", "Positions  "))
+
+# currently relying on duplicate values of every FY column in order to name
+# them appropriately with the suffix arg from left_join()
+pm <- import("Inputs/PM Actual Value Pivot.xlsx") %>%
+  left_join(import("Inputs/PM Target Value Pivot.xlsx"), 
+            by = c("Service ID", "Service Name", "Type", "PMID", "Priority Measure"),
+            suffix = c(" Actual", " Target")) %>%
+  filter(Type %in% c("Outcome", "Effectiveness", "Efficiency", "Output"),
+         !grepl("(Copy)", `Priority Measure`, fixed = TRUE)) %>%
+  mutate(Service = str_extract(`Service Name`, "[[:digit:]]{3}"),
+         `Extra PM Table` = str_extract(`Service Name`, "[[:digit:]]{3}[a-z]{0,1}"),
+         `Extra PM Table` = str_extract(`Extra PM Table`, "[^0-9]"),
+         `Extra PM Table` = ifelse(!is.na(`Extra PM Table`),
+                                   sub('Service [[:digit:]]{3}[a-z]{0,1}\\:', '', `Service Name`), NA),
+         Type = factor(Type, c("Output", "Efficiency", "Effectiveness", "Outcome"))) %>%
+  select(Service, `Extra PM Table`, Type, Measure = `Priority Measure`,
+         # grabs the appropriate years of actuals and targets
+         matches(paste((params$fy - 2):params$fy, "Target", collapse = "|")),
+         matches(paste((params$fy - 5):(params$fy - 2), "Actual", collapse = "|"))) %>%
+  # order cols alphabetically
+  select(Service:Measure, sort(names(.))) %>%
+  # make the target come first for the FY where there's both an actual and total
+  select(Service:!!sym(paste0("20", params$fy - 3, " Actual")),
+         !!sym(paste0("20", params$fy - 2, " Target")),
+         !!sym(paste0("20", params$fy - 2, " Actual")),
+         !!sym(paste0("20", params$fy - 1, " Target")),
+         !!sym(paste0("20", params$fy, " Target"))) %>%
+  set_colnames(c("Service", "Extra PM Table", "Type", "Measure", "Actual", "Actual ",
+                 "Actual  ", "Target", "Actual   ", "Target ", "Target  ")) %>%
+  arrange(Service, Type) %>%
+  # formatting (and thus conversion to char) can be done early bc performance measures don't need to be totaled
+  mutate_at(.vars = vars(matches("Actual|Target")), .funs = funs(case_when(
+    grepl("%|percent", Measure, ignore.case = TRUE) ~ paste0(., "%"),
+    grepl("$|cost|dollar", Measure, ignore.case = TRUE) ~ 
+      scales::dollar(as.numeric(.), prefix = "", negative_parens = TRUE),
+    TRUE ~ as.character(.))))
+
+# Organize ####
+# Pull inputs from all inputs sources by service in preparation for knitting
+
+x <- unique(inputs$service.desc$`Program ID`)
+
+services <- map(x, function(x) {
+  
+  list(Agency = aggregate$line.item %>%
+         filter(`Program ID` == x) %>%
+         extract2("Agency Name - Cleaned") %>%
+         unique(),
+       Service = aggregate$line.item %>%
+         filter(`Program ID` == x) %>%
+         extract2("Program Name") %>%
+         unique(),
+       Objective = aggregate$line.item %>%
+         filter(`Program ID` == x) %>%
+         extract2("Objective Name") %>%
+         unique(),
+       `Service Description` = inputs$service.desc %>%
+         filter(`Program ID` == x) %>%
+         extract2("Service Description"),
+       `Historical` = historical %>%
+         filter(`Program ID` == x) %>%
+         select(-`Program ID`) %>%
+         mutate_at(.vars = vars(starts_with("1")),
+                   .funs = funs(scales::dollar(., prefix = "", negative_parens = TRUE))),
+       `Performance Measures` = pm %>%
+         filter(Service == x) %>%
+         select(-Service),
+       `PM Notes` = inputs$pm.notes %>%
+         filter(Service == x) %>%
+         select(-Service) %>%
+         extract2("Performance Measure Notes"),
+       `Major Budget Items` = inputs$budget.items %>%
+         filter(Service == x) %>%
+         extract2("Major Budget Items"),
+       `Change Table` = inputs$change %>%
+           filter(`Program ID` == x,
+                  !is.na(Amount) & !is.na(`Changes or adjustments`)) %>%
+           select(-`Program ID`))
+  }
+)
+
+names(services) <- x
+
+rm(list = setdiff(ls(), c("services", "params", "x"))) # memory mgmt
+
+# loop
+x <- c(385, 707, 708) # restrict service pdfs generated for testing
+
+map(x, function(x) {
+  x <- as.character(x)
+  knitr::knit_meta(class = NULL, clean = TRUE)
+  rmarkdown::render('Scripts/one_pagers.Rmd',
+                    output_file = paste0(services[[x]]$Agency,
+                                        " Service ", x, ".pdf"), 
+                    output_dir = 'Outputs/')
+  # services[[x]] <- NULL # memory mgmt
+  }
+)

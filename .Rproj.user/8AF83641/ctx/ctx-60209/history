@@ -1,0 +1,512 @@
+corrections[[i]][2], # replacement
+camera.loc$`Clean Location`,
+ignore.case = TRUE)
+}
+camera.loc <- import("Inputs/Geocoded Cameras.csv") %>%
+rename(lat = Latitude, lon = Longitude) %>%
+mutate_at(vars(c("lat", "lon")), as.numeric)
+cameras <- import("L:/BBMR_CSV_FILE_20220402.CSV") %>%
+set_colnames(tools::toTitleCase(tolower(names(.)))) %>%
+mutate(Type = case_when(`Viol Code` == 30 ~ "Red light",
+`Viol Code` == 31 ~ "Right on red",
+`Viol Code` == 32 ~ "Fixed camera speed",
+`Viol Code` == 33 ~ "Mobile camera speed",
+`Viol Code` == 34 ~ "Fixed camera speed (diff rate)",
+`Viol Code` == 35 ~ "Work zone speed violation",
+`Viol Code` %in% 36:38 ~ "Comm vehicle height"),
+Fees = case_when(`Viol Code` %in% c(30, 31) ~ 75,
+`Viol Code` %in% c(32, 33, 34, 35) ~ 40 ,
+`Viol Code` == 36 ~ 0,
+`Viol Code` == 37 ~ 125,
+`Viol Code` == 38 ~ 250),
+`Paid Date` = ymd(`Paid Date`),
+Month = paste0(year(`Paid Date`), "-", str_pad(month(`Paid Date`), 2, "left", "0"))) %>%
+filter(!is.na(`Paid Date`)) %>%
+group_by(Location) %>%
+mutate(Types = paste(sort(unique(Type)), collapse = ", ")) %>%
+group_by(Location, Month) %>%
+mutate(Count = n(),
+Fees = sum(Fees)) %>%
+distinct(Location, Month, Types, Count, Fees) %>%
+left_join(camera.loc) %>%
+ungroup()
+df<- select(cameras, `Location`,`Types`, `Month`, `Fees`) %>%
+mutate(Date = lubridate::ym(df$Month))
+df$Date <- format(df$Date, "%Y-%m")
+df<- select(cameras, `Location`,`Types`, `Month`, `Fees`) %>%
+mutate(Date = lubridate::ym(df$Month))
+df<- select(cameras, `Location`,`Types`, `Month`, `Fees`)
+View(df)
+df<- select(cameras, `Location`,`Types`, `Month`, `Fees`) %>%
+#mutate(Date = lubridate::ym(df$Month))
+mutate(Date = df$Month)
+View(df)
+df %>%
+arrange(df$Date) %>%
+group_by(`Location`, `Date`)
+df %>%
+select(-`Month`) %>%
+arrange(df$Date) %>%
+group_by(`Location`, `Date`)
+View(df)
+View(df)
+df <- df %>%
+select(-`Month`) %>%
+arrange(df$Date) %>%
+group_by(`Location`, `Date`)
+df<- select(cameras, `Location`,`Types`, `Month`, `Fees`) %>%
+#mutate(Date = lubridate::ym(df$Month))
+mutate(Date = df$Month)
+df$Date <- format(df$Date, "%Y-%m")
+df<- select(cameras, `Location`,`Types`, `Month`, `Fees`) %>%
+#mutate(Date = lubridate::ym(df$Month))
+mutate(Date = df$Month)
+df$Date <- format(df$Date, "%Y-%m")
+df %>%
+arrange(df$Date) %>%
+group_by(`Location`, `Date`)
+df2 <- select(df, -Month) %>%
+arrange(Date)
+pivot <- pivot_wider(data = df2, names_from = `Date`, values_from = Fees)
+pivot$Total<- rowSums(pivot[,c(-1, -2)])
+export_excel(pivot, "Cameras", "Camera Revenue by Month and Location_Jan 2022.xlsx", "new")
+df2 <- select(df, -Month) %>%
+arrange(Date)
+pivot <- pivot_wider(data = df2, names_from = `Date`, values_from = Fees)
+pivot$Total<- rowSums(pivot[,c(-1, -2)])
+export_excel(pivot, "Cameras", "Camera Revenue by Month and Location_Apr 2022.xlsx", "new")
+.libPaths("C:/Users/sara.brumfield2/.conda/envs/bbmr/Lib/R/library")
+library(tidyverse)
+library(lubridate)
+library(rio)
+library(magrittr)
+.libPaths("G:/Data/r_library")
+library(bbmR)
+# Camera data ####
+camera.loc <- import("Inputs/Geocoded Cameras.csv") %>%
+mutate_at(vars(c("Latitude", "Longitude")), as.numeric)
+# file path = //balt-fileld-srv/legacy/BBMR CAMERA/
+cameras <- import("L:/BBMR_CSV_FILE_20220402.CSV")
+df <- cameras %>%
+set_colnames(tools::toTitleCase(tolower(names(.)))) %>%
+mutate_at(vars(contains("DATE")), ymd) %>%
+mutate(Paid = !is.na(`Paid Date`),
+`YYYY-MM` = paste0(year(`Viol Date`), "-",
+str_pad(month(`Viol Date`), 2, "left", "0")),
+Type = case_when(`Viol Code` == 30 ~ "Red light/right on red",
+`Viol Code` == 31 ~ "Red light/right on red",
+`Viol Code` == 32 ~ "Fixed camera speed",
+`Viol Code` == 33 ~ "Mobile camera speed",
+`Viol Code` == 34 ~ "Fixed camera speed (diff rate)",
+`Viol Code` == 35 ~ "Work zone speed violation",
+`Viol Code` %in% 36:38 ~ "Comm vehicle height"),
+`Days to Payment` = `Paid Date` - `Viol Date`)
+issued <- df %>%
+group_by(Type, Location, `YYYY-MM`) %>%
+summarize(Count = n()) %>%
+spread(`YYYY-MM`, Count) %>%
+left_join(median)
+View(cameras)
+View(df)
+# Camera data ####
+camera.loc <- import("Inputs/Geocoded Cameras.csv") %>%
+mutate_at(vars(c("Latitude", "Longitude")), as.numeric)
+# file path = //balt-fileld-srv/legacy/BBMR CAMERA/
+cameras <- import("L:/BBMR_CSV_FILE_20220503.CSV")
+View(cameras)
+df <- cameras %>%
+set_colnames(tools::toTitleCase(tolower(names(.)))) %>%
+mutate_at(vars(contains("DATE")), ymd) %>%
+mutate(Paid = !is.na(`Paid Date`),
+`YYYY-MM` = paste0(year(`Viol Date`), "-",
+str_pad(month(`Viol Date`), 2, "left", "0")),
+Type = case_when(`Viol Code` == 30 ~ "Red light/right on red",
+`Viol Code` == 31 ~ "Red light/right on red",
+`Viol Code` == 32 ~ "Fixed camera speed",
+`Viol Code` == 33 ~ "Mobile camera speed",
+`Viol Code` == 34 ~ "Fixed camera speed (diff rate)",
+`Viol Code` == 35 ~ "Work zone speed violation",
+`Viol Code` %in% 36:38 ~ "Comm vehicle height"),
+`Days to Payment` = `Paid Date` - `Viol Date`)
+View(df)
+median <- df %>%
+group_by(Location) %>%
+summarize(`Median Days to Payment` = median(`Days to Payment`, na.rm = TRUE))
+issued <- df %>%
+group_by(Type, Location, `YYYY-MM`) %>%
+summarize(Count = n()) %>%
+spread(`YYYY-MM`, Count) %>%
+left_join(median)
+View(issued)
+export_excel(issued, "Cameras", "Camera Violations 2022-04-02.xlsx", "new")
+export_excel(issued, "Cameras", "Camera Violations 2022-05-03.xlsx", "new")
+#This is how you normally input data
+library(rio)
+data <- import("Camera Violations 2022-05-03.xlsx")
+violations <- camera %>%
+mutate_at(vars(ends_with("DATE")), ymd) %>%
+mutate(Fees = case_when(`VIOL CODE` %in% c(30, 31) ~ 75,
+`VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
+`VIOL CODE` == 36 ~ 0,
+`VIOL CODE` == 37 ~ 125,
+`VIOL CODE` == 38 ~ 250),
+`VIOL MONTH` = ymd(paste0(year(`VIOL DATE`), "-", month(`VIOL DATE`), "-01")))
+tag <- violations %>%
+count(STATUS, TAG, `VIOL CODE`, `VIOL MONTH`)
+fy <- tag %>%
+mu
+summary <- violations %>%
+count(LOCATION, `VIOL CODE`)
+summary <- violations %>%
+group_by(LOCATION, `VIOL CODE`) %>%
+summarize(Fees = sum(Fees, na.rm = TRUE))
+tag <- violations %>%
+count(TAG, LOCATION, Fees) %>%
+arrange(-n)
+tag.summary <- violations %>%
+group_by(TAG) %>%
+summarize(Fees = sum(Fees, na.rm = TRUE))
+violations <- camera %>%
+mutate_at(vars(ends_with("DATE")), ymd) %>%
+mutate(Fees = case_when(`VIOL CODE` %in% c(30, 31) ~ 75,
+`VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
+`VIOL CODE` == 36 ~ 0,
+`VIOL CODE` == 37 ~ 125,
+`VIOL CODE` == 38 ~ 250),
+`VIOL MONTH` = ymd(paste0(year(`VIOL DATE`), "-", month(`VIOL DATE`), "-01")))
+violations <- cameras %>%
+mutate_at(vars(ends_with("DATE")), ymd) %>%
+mutate(Fees = case_when(`VIOL CODE` %in% c(30, 31) ~ 75,
+`VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
+`VIOL CODE` == 36 ~ 0,
+`VIOL CODE` == 37 ~ 125,
+`VIOL CODE` == 38 ~ 250),
+`VIOL MONTH` = ymd(paste0(year(`VIOL DATE`), "-", month(`VIOL DATE`), "-01")))
+tag <- violations %>%
+count(STATUS, TAG, `VIOL CODE`, `VIOL MONTH`)
+fy <- tag %>%
+mu
+summary <- violations %>%
+count(LOCATION, `VIOL CODE`)
+summary <- violations %>%
+group_by(LOCATION, `VIOL CODE`) %>%
+summarize(Fees = sum(Fees, na.rm = TRUE))
+tag <- violations %>%
+count(TAG, LOCATION, Fees) %>%
+arrange(-n)
+tag.summary <- violations %>%
+group_by(TAG) %>%
+summarize(Fees = sum(Fees, na.rm = TRUE))
+export_excel(issued, "Cameras", "Camera Violations Payments 2022-05-03.xlsx", "new")
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35))
+export_excel(filtered, "Cameras", "Camera Violations 40-75 Only 2022-05-03.xlsx", "new")
+View(filtered)
+export_excel(filtered, "Cameras", "Camera Violations 40-75 Only 2022-05-03.xlsx", "new")
+violations %>% mutate(`Year` = format(`VIOL DATE`, format = "%Y"))
+View(violations)
+violations <- violations %>% mutate(`Year` = format(`VIOL DATE`, format = "%Y"))
+View(violations)
+unique(violations$Year)
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015)
+filtered %>% group_by(`Year`, `LOCATION`) %>% summarise(`Fees`, sum(na.rm = True))
+filtered %>% group_by(`Year`, `LOCATION`) %>% summarise(across(c(`Fees`, `TAG`), list(`Total Fees` = ~ sum(.x, na.rm = T),
+`Total Tickets` = ~ count(!is.na(.x)))))
+filtered %>% group_by(`Year`, `LOCATION`)
+filtered %>% group_by(`Year`, `LOCATION`) %>% summarise(across(c(`Fees`, `TAG`), list(`Total Fees` = ~ sum(na.rm = True),
+`Total Tickets` = ~ count())))
+filtered %>% group_by(`Year`, `LOCATION`) %>% summarise(across(c(`Fees`, `TAG`), list(`Total Fees` = ~ sum(),
+`Total Tickets` = ~ count())))
+filtered %>% group_by(`Year`, `LOCATION`) %>% summarise(across(c(`Fees`, `TAG`), list(`Total Fees` = sum(),
+`Total Tickets` = count())))
+filtered %>% group_by(`Year`, `LOCATION`) %>% summarise(`Total Fees` = sum(`Fees`),
+`Total Tickets` = count(`TAG`))
+filtered %>% group_by(`Year`, `LOCATION`) %>% summarise(`Total Fees` = sum(`Fees`, na.rm = TRUE),
+`Total Tickets` = count(`TAG`))
+filtered %>% group_by(`Year`, `LOCATION`) %>% summarise(`Total Fees` = sum(`Fees`, na.rm = TRUE))
+filtered %>% group_by(`Year`, `LOCATION`) %>% summarise(`Total Fees` = sum(`Fees`, na.rm = TRUE),
+`Total Tickets` = count(`CITATION`))
+filtered %>% group_by(`Year`, `LOCATION`, `VIOL CODE`) %>% summarise(`Total Fees` = sum(`Fees`, na.rm = TRUE),
+`Total Tickets` = count(`CITATION`, na.rm = TRUE))
+filtered %>% group_by(`Year`, `LOCATION`, `VIOL CODE`) %>% summarise(`Total Fees` = sum(`Fees`, na.rm = TRUE),
+`Total Tickets` = count(`CITATION`))
+filtered %>% group_by(`Year`, `LOCATION`, `VIOL CODE`) %>% summarise(`Total Fees` = sum(`Fees`, na.rm = TRUE),
+`Total Tickets` = n(`CITATION`))
+filtered %>% group_by(`Year`, `LOCATION`, `VIOL CODE`) %>% summarise(`Total Fees` = sum(`Fees`, na.rm = TRUE),
+`Total Tickets` = n())
+filtered <- filtered %>% group_by(`Year`, `LOCATION`, `VIOL CODE`) %>% summarise(`Total Fees` = sum(`Fees`, na.rm = TRUE),
+`Total Tickets` = n())
+View(filtered)
+export_excel(filtered, "Cameras", "Camera Violations 40-75 Only 2022-05-03.xlsx", "new")
+filtered <- filtered %>% group_by(`Year`, `LOCATION`, `VIOL CODE`, `STATUS`) %>% summarise(`Total Fees` = sum(`Fees`, na.rm = TRUE),
+`Total Tickets` = n())
+violations <- violations %>% mutate(`Year` = format(`VIOL DATE`, format = "%Y"))
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015)
+violations <- violations %>% mutate(`Year` = format(`VIOL DATE`, format = "%Y"))
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+group_by(`Year`, `LOCATION`, `VIOL CODE`, `STATUS`) %>%
+summarise(`Total Fees` = sum(`Fees`, na.rm = TRUE),
+`Total Tickets` = n())
+View(filtered)
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(`STATUS` == "P" ~ "Paid",
+TRUE ~ "Issued")) %>%
+group_by(`Year`, `VIOL CODE`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(`Fees`, na.rm = TRUE),
+`Total Tickets` = n())
+View(filtered)
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(`STATUS` == "P" ~ "Paid",
+TRUE ~ "Issued")) %>%
+group_by(`Year`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(`Fees`, na.rm = TRUE),
+`Total Tickets` = n())
+View(filtered)
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(`STATUS` == "P" ~ "Paid",
+TRUE ~ "Issued")) %>%
+group_by(`Year`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(~is.na(`Fees`)),
+`Total Tickets` = n())
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(`STATUS` == "P" ~ "Paid",
+TRUE ~ "Issued")) %>%
+group_by(`Year`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(~is.na(`Fees`), na.rm = TRUE),
+`Total Tickets` = n())
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015)
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(`STATUS` == "P" ~ "Paid",
+TRUE ~ "Issued")) %>%
+group_by(`Year`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(filtered$`Fees`[!is.na(filtered$Fees)], na.rm = TRUE),
+`Total Tickets` = n())
+View(filtered)
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+replace_na(0) %>%
+mutate(`Pay Status` = case_when(`STATUS` == "P" ~ "Paid",
+TRUE ~ "Issued"))
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+replace_na(filtered$Fees, 0)
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015)
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(`STATUS` == "P" ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(.is.na(`PAID DATE`), 0,
+TRUE ~ `Fees`))
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(`STATUS` == "P" ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(is.na(`PAID DATE`), 0,
+TRUE ~ `Fees`))
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(`STATUS` == "P" ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(is.na(`PAID DATE`) == TRUE, 0,
+TRUE ~ `Fees`))
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(`STATUS` == "P" ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(is.na(`PAID DATE`) == TRUE ~ 0,
+TRUE ~ `Fees`))
+View(filtered)
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(`STATUS` == "P" ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(is.na(`PAID DATE`) == TRUE ~ 0,
+TRUE ~ `Fees`)) %>%
+group_by(`Year`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(`Paid Amount`, na.rm = TRUE),
+`Total Tickets` = n())
+View(filtered)
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(is.na(`PAID DATE`) == TRUE ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(is.na(`PAID DATE`) == TRUE ~ 0,
+TRUE ~ `Fees`)) %>%
+group_by(`Year`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(`Paid Amount`, na.rm = TRUE),
+`Total Tickets` = n())
+View(filtered)
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(!is.na(`PAID DATE`) == TRUE ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(is.na(`PAID DATE`) == TRUE ~ 0,
+TRUE ~ `Fees`)) %>%
+group_by(`Year`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(`Paid Amount`, na.rm = TRUE),
+`Total Tickets` = n())
+View(filtered)
+violations <- violations %>% mutate(`Year` = format(`VIOL DATE`, format = "%Y"),
+`Month` = format(`VIOL DATE`, format = "%m"),
+`Year-Month` = format(`VIOL DATE`, format = "%Y-%m"))
+View(violations)
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(!is.na(`PAID DATE`) == TRUE ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(is.na(`PAID DATE`) == TRUE ~ 0,
+TRUE ~ `Fees`)) %>%
+group_by(`Year-Month`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(`Paid Amount`, na.rm = TRUE),
+`Total Tickets` = n())
+View(filtered)
+export_excel(filtered, "Cameras", "Camera Violations 40-75 Only 2022-05-03.xlsx", "new")
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(!is.na(`PAID DATE`) == TRUE ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(is.na(`PAID DATE`) == TRUE ~ 0,
+TRUE ~ `Fees`)) %>%
+group_by(`Year`, `Month`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(`Paid Amount`, na.rm = TRUE),
+`Total Tickets` = n())
+View(filtered)
+export_excel(filtered, "Cameras", "Camera Violations 40-75 Only 2022-05-03.xlsx", "new")
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(!is.na(`PAID DATE`) == TRUE ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(is.na(`PAID DATE`) == TRUE ~ 0,
+TRUE ~ `Fees`)) %>%
+group_by(`Year`, `Month`, `VIOL CODE`, Pay Status`) %>%
+summarise(`Total Fees` = sum(`Paid Amount`, na.rm = TRUE),
+`Total Tickets` = n())
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(!is.na(`PAID DATE`) == TRUE ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(is.na(`PAID DATE`) == TRUE ~ 0,
+TRUE ~ `Fees`)) %>%
+group_by(`Year`, `Month`, `VIOL CODE`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(`Paid Amount`, na.rm = TRUE),
+`Total Tickets` = n())
+View(filtered)
+violations <- cameras %>%
+mutate_at(vars(ends_with("DATE")), ymd) %>%
+mutate(Fees = case_when(`VIOL CODE` %in% c(30, 31) ~ 75,
+`VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
+`VIOL CODE` == 36 ~ 0,
+`VIOL CODE` == 37 ~ 125,
+`VIOL CODE` == 38 ~ 250),
+Type = case_when(`VIOL CODE` == 30 ~ "Red Light Violation",
+`VIOL CODE` == 31 ~ "Right on Red",
+`VIOL CODE` == 32 ~ "Speed Violation",
+`VIOL CODE` == 33 ~ "No Description",
+`VIOL CODE` == 34 ~ "No Description",
+`VIOL CODE` == 35 ~ "No Description"
+`VIOL CODE` == 36 ~ "No Description"
+`VIOL CODE` == 37 ~ "No Description"
+`VIOL CODE` == 38 ~ "No Description")
+`VIOL MONTH` = ymd(paste0(year(`VIOL DATE`), "-", month(`VIOL DATE`), "-01")))
+violations <- cameras %>%
+mutate_at(vars(ends_with("DATE")), ymd) %>%
+mutate(Fees = case_when(`VIOL CODE` %in% c(30, 31) ~ 75,
+`VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
+`VIOL CODE` == 36 ~ 0,
+`VIOL CODE` == 37 ~ 125,
+`VIOL CODE` == 38 ~ 250),
+Type = case_when(`VIOL CODE` == 30 ~ "Red Light Violation",
+`VIOL CODE` == 31 ~ "Right on Red",
+`VIOL CODE` == 32 ~ "Speed Violation",
+`VIOL CODE` == 33 ~ "No Description",
+`VIOL CODE` == 34 ~ "No Description",
+`VIOL CODE` == 35 ~ "No Description"
+`VIOL CODE` == 36 ~ "No Description"
+`VIOL CODE` == 37 ~ "No Description"
+`VIOL CODE` == 38 ~ "No Description"),
+`VIOL MONTH` = ymd(paste0(year(`VIOL DATE`), "-", month(`VIOL DATE`), "-01")))
+violations <- cameras %>%
+mutate_at(vars(ends_with("DATE")), ymd) %>%
+mutate(Fees = case_when(`VIOL CODE` %in% c(30, 31) ~ 75,
+`VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
+`VIOL CODE` == 36 ~ 0,
+`VIOL CODE` == 37 ~ 125,
+`VIOL CODE` == 38 ~ 250),
+Type = case_when(`VIOL CODE` == 30 ~ "Red Light Violation",
+`VIOL CODE` == 31 ~ "Right on Red",
+`VIOL CODE` == 32 ~ "Speed Violation",
+`VIOL CODE` == 33 ~ "No Description",
+`VIOL CODE` == 34 ~ "No Description",
+`VIOL CODE` == 35 ~ "No Description"
+`VIOL CODE` == 36 ~ "No Description"
+`VIOL CODE` == 37 ~ "No Description"
+`VIOL CODE` == 38 ~ "No Description"))
+violations <- cameras %>%
+mutate_at(vars(ends_with("DATE")), ymd) %>%
+mutate(Fees = case_when(`VIOL CODE` %in% c(30, 31) ~ 75,
+`VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
+`VIOL CODE` == 36 ~ 0,
+`VIOL CODE` == 37 ~ 125,
+`VIOL CODE` == 38 ~ 250),
+Type = case_when(`VIOL CODE` == 30 ~ "Red Light Violation",
+`VIOL CODE` == 31 ~ "Right on Red",
+`VIOL CODE` == 32 ~ "Speed Violation",
+`VIOL CODE` == 33 ~ "No Description",
+`VIOL CODE` == 34 ~ "No Description",
+`VIOL CODE` == 35 ~ "No Description",
+`VIOL CODE` == 36 ~ "No Description",
+`VIOL CODE` == 37 ~ "No Description",
+`VIOL CODE` == 38 ~ "No Description"),
+`VIOL MONTH` = ymd(paste0(year(`VIOL DATE`), "-", month(`VIOL DATE`), "-01")))
+View(violations)
+violations <- violations %>% mutate(`Year` = format(`VIOL DATE`, format = "%Y"),
+`Month` = format(`VIOL DATE`, format = "%m"),
+`Year-Month` = format(`VIOL DATE`, format = "%Y-%m"))
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(!is.na(`PAID DATE`) == TRUE ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(is.na(`PAID DATE`) == TRUE ~ 0,
+TRUE ~ `Fees`)) %>%
+group_by(`Year`, `Month`, `VIOL CODE`, `Type`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(`Paid Amount`, na.rm = TRUE),
+`Total Tickets` = n())
+View(filtered)
+export_excel(filtered, "Cameras", "Camera Violations 40-75 Only 2022-05-03.xlsx", "new")
+.libPaths("C:/Users/sara.brumfield2/Documents/r_library")
+library(tidyverse)
+library(lubridate)
+.libPaths("G:/Data/r_library")
+library(bbmr)
+#load("Data/Camera Violations 2022-05-03.Rdata")
+#This is how you normally input data
+library(rio)
+data <- import("Camera Violations 2022-05-03.xlsx")
+violations <- cameras %>%
+mutate_at(vars(ends_with("DATE")), ymd) %>%
+mutate(Fees = case_when(`VIOL CODE` %in% c(30, 31) ~ 75,
+`VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
+`VIOL CODE` == 36 ~ 0,
+`VIOL CODE` == 37 ~ 125,
+`VIOL CODE` == 38 ~ 250),
+Type = case_when(`VIOL CODE` == 30 ~ "Red Light Violation",
+`VIOL CODE` == 31 ~ "Right on Red",
+`VIOL CODE` == 32 ~ "Speed Violation",
+`VIOL CODE` == 33 ~ "No Description",
+`VIOL CODE` == 34 ~ "No Description",
+`VIOL CODE` == 35 ~ "No Description",
+`VIOL CODE` == 36 ~ "No Description",
+`VIOL CODE` == 37 ~ "No Description",
+`VIOL CODE` == 38 ~ "No Description"),
+`VIOL MONTH` = ymd(paste0(year(`VIOL DATE`), "-", month(`VIOL DATE`), "-01")))
+#2016 and 47/75 fees only
+violations <- violations %>% mutate(`Year` = format(`VIOL DATE`, format = "%Y"),
+`Month` = format(`VIOL DATE`, format = "%m"),
+`Year-Month` = format(`VIOL DATE`, format = "%Y-%m"))
+filtered <- filter(violations, `VIOL CODE` %in% c(30, 31, 32, 33, 34, 35) & `Year` > 2015) %>%
+mutate(`Pay Status` = case_when(!is.na(`PAID DATE`) == TRUE ~ "Paid",
+TRUE ~ "Issued"),
+`Paid Amount` = case_when(is.na(`PAID DATE`) == TRUE ~ 0,
+TRUE ~ `Fees`)) %>%
+group_by(`Year`, `Month`, `VIOL CODE`, `Type`, `Pay Status`) %>%
+summarise(`Total Fees` = sum(`Paid Amount`, na.rm = TRUE),
+`Total Tickets` = n())
+filtered_paid <- filter(filtered, filtered$`Pay Status`=="P")
+filtered_issued <- filter
+export_excel(filtered_paid, "Paid", "Camera Violations 40-75 Only 2022-05-03.xlsx", "new")
+export_excel(filtered_issued, "Issued", "Camera Violations 40-75 Only 2022-05-03.xlsx", "existing")
+.libPaths("C:/Users/sara.brumfield2/Documents/r_library")
+library(tidyverse)
+library(lubridate)
+.libPaths("G:/Data/r_library")
+library(bbmR)
+#load("Data/Camera Violations 2022-05-03.Rdata")
+#This is how you normally input data
+library(rio)
+data <- import("Camera Violations 2022-05-03.xlsx")
+install.packages("odbc")

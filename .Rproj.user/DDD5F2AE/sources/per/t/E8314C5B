@@ -1,0 +1,29 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1572988529796.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "E8314C5B",
+    "lastKnownWriteTime" : 2225416581184,
+    "last_content_update" : 1572988529796,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "43FABCD2",
+        "caption" : "camera.loc",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=camera.loc&cache_key=43FABCD2",
+        "displayedObservations" : 229,
+        "environment" : "",
+        "object" : "camera.loc",
+        "preview" : 0,
+        "totalObservations" : 229,
+        "variables" : 2
+    },
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_dataframe"
+}

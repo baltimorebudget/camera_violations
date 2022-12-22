@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1639175813251.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "114DA6FC",
+    "lastKnownWriteTime" : 1596209081,
+    "last_content_update" : 1596209081,
+    "path" : "G:/Analyst Folders/Lillian/revenue/camera_violations/Import.R",
+    "project_path" : "Import.R",
+    "properties" : {
+        "cursorPosition" : "12,13",
+        "scrollLine" : "0"
+    },
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

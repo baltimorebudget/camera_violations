@@ -1,0 +1,51 @@
+# How the Money is Used
+
+use <- data$expend %>%
+  filter(`Fund Name` != "Internal Service",
+         `Object ID` != 0) %>%
+  mutate(Type = case_when(`Object ID` == 1 ~ "Salaries",
+                          `Object ID` == 2 ~ "Other Personnel Costs",
+                          `Object ID` == 3 ~ "Contractual",
+                          `Object ID` %in% c(4, 5, 6) ~ "Materials & Supplies",
+                          `Object ID` == 7 ~ "Grants & Subsidies",
+                          `Object ID` %in% c(8,9) ~ "Debt Service")) %>%
+  select(Type, !!sym(paste0("FY", params$fy, " ", params$phase))) %>%
+  group_by(Type) %>%
+  summarize(!!sym(paste0("FY", params$fy, " ", params$phase)) :=
+              sum(!!sym(paste0("FY", params$fy, " ", params$phase)), na.rm = TRUE)) %>%
+  mutate(Percent = !!sym(paste0("FY", params$fy, " ", params$phase)) /
+           sum(!!sym(paste0("FY", params$fy, " ", params$phase)))) %>%
+  arrange(desc(Percent))
+
+# Mayor Pugh wanted this chart by function (pillar) instead of by categories of expenses
+
+# use <- data$expend %>%
+#   filter(`Fund Name` == "General") %>%
+#   select(`Objective Name`, !!sym(paste0("FY", params$fy, " ", params$phase))) %>%
+#   group_by(`Objective Name`) %>%
+#   summarize(!!sym(paste0("FY", params$fy, " ", params$phase)) :=
+#               sum(!!sym(paste0("FY", params$fy, " ", params$phase)), na.rm = TRUE)) %>%
+#   mutate(Percent = !!sym(paste0("FY", params$fy, " ", params$phase)) /
+#            sum(!!sym(paste0("FY", params$fy, " ", params$phase)))) %>%
+#   arrange(desc(Percent))
+
+gg_pie <- list(
+  geom_bar(stat="identity", width = 1),
+    coord_polar("y", start = 0),
+  scale_fill_viridis(discrete = TRUE),
+  theme_void(),
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_text(face = "bold"),
+        axis.text = element_blank()),
+  labs(x = NULL, y = NULL)
+)
+
+ggplot(use, aes(x = "", y = Percent, fill = Type)) +
+  gg_pie +
+  geom_text(aes(
+    label = paste0(format_m(!!sym(paste0("FY", params$fy, " ", params$phase))),
+                   "\n(", scales::percent(Percent), ")")),
+    position = position_stack(vjust = 0.5)) +
+  labs(title = "How the Money is Used",
+       subtitle = paste(
+         "Total:", format_b(sum(use[[paste0("FY", params$fy, " ", params$phase)]]))))

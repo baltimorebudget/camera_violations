@@ -1,0 +1,743 @@
+---
+title: "FIA Center Boundaries Analysis"
+output:
+  html_notebook: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r Setup, message=FALSE, warning=FALSE, include=FALSE}
+library(BCDSS)
+LoadPackages(c('tidyverse', 'rio','ggmap', 'lubridate', 'scales', 'stringr', 'knitr', 'tidyr', 'ggrepel'))
+gis <- "S:/Innovation Office/Misc/GIS/Shape Files"
+
+# Getting cleaned data ####
+df <- GetCARES()
+#save(cases, file="cases.RData")
+
+# Final cleaned data
+
+cases <- list(
+     hoh = df %>% filter(`HOH IRN` == `CARES ID`) %>%
+          group_by(`HOH IRN`) %>%
+          mutate(`Program Count` = n_distinct(`Program Code`)) %>%
+          distinct(`HOH IRN`, .keep_all = TRUE) %>%
+          ungroup(),
+     au = df %>%
+          group_by(`HOH IRN`) %>%
+          mutate(`Program Count` = n_distinct(`Program Code`)) %>%
+          ungroup() %>% 
+          distinct(`AU #`, .keep_all = TRUE),
+     client = df %>%
+          group_by(`HOH IRN`) %>%
+          mutate(`Program Count` = n_distinct(`Program Code`)) %>%
+          ungroup() %>% 
+          distinct(`CARES ID`, .keep_all = TRUE)) %>%
+     lapply(filter, `AU Status Code` == "A" & `Ldss Id` == 30) %>%
+     lapply(select, `District Office #`, First, Last, `CARES ID`, `AU #`, `Program Code`, `Program Count`,
+          `Fin Responsibility`, `HOH IRN`, `Redetermination End Date`, Birthdate,
+          `Residential Zip Code`, `MA Coverage Group`, `Application ID`)
+
+works <- read.csv('S:/Innovation Office/familyinvestment/all/caseequal/swredist/fia_all_casequal_swredist_dat_works_170817.csv', header=TRUE, stringsAsFactors=FALSE)
+names(works) <- RenameCol(works)
+works <- select(works, `Client ID`, `Participation Status Code`,`Activity Subcode`,
+     `Exemption Reason`)
+```
+
+
+```{r Parameters, warning = FALSE, include=FALSE}
+params <- list(
+     new = list(
+          `Dunbar-Orangeville` = c(21205, 21222, 21224, 21231, 21237, 21287),
+          `Harbor View` = c(21225, 21227, 21230, 21226),
+          `Hilton Heights` = c(21223, 21228, 21229),
+          `Penn-North` = c(21201, 21216, 21217),
+          Northwest = c(21207, 21208, 21209, 21210, 21211, 21215),
+          `Northeast Regional Office` = c(21202, 21206, 21212, 21213, 21214, 21218, 21234, 21236, 21239, 21251)),
+     current = list(
+          `Dunbar-Orangeville` = c(21205, 21222, 21224, 21231, 21237, 21287),
+          `Harbor View` = c(21225, 21227, 21230, 21226),
+          `Hilton Heights` = c(21216, 21223, 21228, 21229),
+          `Penn-North` = c(21201, 21217),
+          Northwest = c(21207, 21208, 21209, 21210, 21211, 21215),
+          `Northeast Regional Office` = c(21202, 21206, 21212, 21213, 21214, 21218, 21234, 21236, 21239, 21251)))
+
+print(params$new)
+```
+
+```{r Reference dfs, warning = FALSE, include=FALSE}
+
+centers.base <- data.frame(Zip = c(21201, 21202, 21205, 21206, 21207, 21208,
+          21209, 21210, 21211, 21212, 21213, 21214, 21215, 21216, 21217, 21218, 
+          21222, 21223, 21224, 21225, 21226, 21227, 21228, 21229, 21230, 21231, 
+          21234, 21236, 21237, 21239, 21251, 21287), Center = NA) %>%
+     mutate(Zip = as.character(Zip))
+
+codes <- data.frame(Center = c("Harbor View", "Hilton Heights", "Northwest",
+                    "Penn-North", "Dunbar-Orangeville", "Northeast Regional Office",
+                    "Southwest", "Training Region", "E-Applications", "Central MA",
+                    "Central Foster Care MA", "Resettlement Center", "Health Department"),
+                    Code = c(332, 344, 340, 346, 341, 337, 345, 300, 336, 353, 356, 370, 399)) %>%
+     mutate(Center = as.character(Center))
+
+# Outpost workers taken from BCDSS roster Google Sheet on 7/18/2017
+codes$Outpost[codes$Center == "Dunbar-Orangeville"] <- 8
+codes$Outpost[codes$Center == "Harbor View"] <- 0
+codes$Outpost[codes$Center == "Penn-North"] <- 8
+codes$Outpost[codes$Center == "Northwest"] <- 1
+codes$Outpost[codes$Center == "Northeast Regional Office"] <- 2
+codes$Outpost[codes$Center == "Hilton Heights"] <- 2
+
+centers <- centers.base
+      
+
+for (i in names(params[["new"]])){
+          centers$Center[centers$Zip %in% params[["new"]][[i]]] <- i}
+
+     centers <- left_join(centers, codes)
+```
+
+# Context
+In July 2017, FIA is transitioning its centers' boundaries to align with zip code boundaries. 
+
+```{r Maps, echo=FALSE, message=FALSE, warning=FALSE}
+
+maps <- list(current = NA,
+             new = NA,
+             base = ggmap(get_map(geocode("Baltimore, MD"),
+                    zoom = 12, scale = 1, maptype = "toner-lite", source="stamen"),
+                    extent="device", maprange = FALSE))
+
+map.sites <- GetMapElements("site") %>%
+     filter(Type == "Family Investment") %>%
+     mutate(`Site Name` = str_wrap(`Site Name`, 10))
+map.zips <- GetMapElements("zipcode")
+
+map.bounds <- left_join(map.zips, centers, by = c("zip" = "Zip"))
+
+# Create map
+for (i in c("new", "current")){
+     maps[[i]] <- maps[["base"]] +
+          geom_polygon(data = map.bounds, aes(x = long, y = lat, group = group, fill = Center),
+               size = .5, alpha = .7) +
+          geom_text(data = map.bounds,  size = 4, fontface = 'bold',
+               aes(label = zip, x = centroid.long, y = centroid.lat)) +
+          geom_point(data = map.sites, aes(x = long, y = lat), size = 4,
+               shape = 17, color = "white") +
+          geom_text(data = map.sites, color = "white", size = 5, fontface = 'bold',
+               aes(label = `Site Name`, x = long, y = lat - .006)) + 
+          labs(#title = paste(str_to_title(i), "Boundaries"),
+                   fill = "Zip Codes Assigned to Center")
+}
+```
+
+
+## New boundaries
+Center boundaries were realigned with zip codes in order to balance caseloads and simplify case assignment:
+
+
+```{r Zipcode assignments, echo=FALSE, message=FALSE, warning=FALSE}
+kable(centers$new %>%
+     filter(Active == "Yes") %>%
+     select(Zip, Center) %>%
+     arrange(Center, Zip))
+```
+
+```{r New map, echo=FALSE, message=FALSE, warning=FALSE, fig.height=6, fig.width=6}
+print(maps$new)
+```
+
+We will be transitioning cases to their respective centers according to these new boundaries a center at a time, according to this schedule:
+
+```{r Schedule, echo=FALSE, message=FALSE, warning=FALSE}
+centers$new %>%
+     select(Center, schedule) %>%
+     distinct(Center, .keep_all = TRUE) %>%
+     filter(!is.na(schedule)) %>%
+     arrange(schedule) %>%
+     kable()
+```
+
+
+```{r Matching centers to households, warning = FALSE, include=FALSE}
+zips <- centers$Zip
+
+caseload <- cases %>%
+     lapply(left_join, centers, by = c("Residential Zip Code" = "Zip")) %>%
+     lapply(left_join,distinct(centers[c("Center", "Code")]), 
+            by = c("District Office #" = "Code")) %>%
+     lapply(rename, `Current FIA Center Code` = `District Office #`, 
+            `New FIA Center` = `Center.x`, `New FIA Center Code` = Code,
+            `Current FIA Center` = `Center.y`) %>%
+     # 353 PAA stays, other program types at 353 go to respective centers   
+     lapply(mutate, `New FIA Center` = ifelse(`Current FIA Center Code` == 353 &
+                                                   `Program Code` == "PA", "Central MA", `New FIA Center`),
+            `New FIA Center Code` = ifelse(`Current FIA Center Code` == 353 &
+                                                `Program Code` == "PA", 353, `New FIA Center Code`),
+            `Current FIA Center` = ifelse(`Current FIA Center Code` == 353,
+                                          "Central MA", `Current FIA Center`)) %>%
+     # 356 stays at foster care MA
+     lapply(mutate, `New FIA Center` = ifelse(`Current FIA Center Code` == 356,
+                                              "Central Foster Care MA", `New FIA Center`),
+            `New FIA Center Code` = ifelse(`Current FIA Center Code` == 356,
+                                           356, `New FIA Center Code`),
+            `Current FIA Center` = ifelse(`Current FIA Center Code` == 356,
+                                          "Central Foster Care MA", `Current FIA Center`)) %>%
+     # 399 stays at city health dept
+     lapply(mutate, `New FIA Center` = ifelse(`Current FIA Center Code` == 399,
+                                              "Health Department", `New FIA Center`),
+            `New FIA Center Code` = ifelse(`Current FIA Center Code` == 399,
+                                           399, `New FIA Center Code`),
+            `Current FIA Center` = ifelse(`Current FIA Center Code` == 399,
+                                          "Health Department", `Current FIA Center`)) %>%
+     # 370 stays at resettlement center and after a few months they can go anywhere in the state
+     lapply(mutate, `New FIA Center` = ifelse(`Current FIA Center Code` == 370,
+                                              "Resettlement Center", `New FIA Center`),
+            `New FIA Center Code` = ifelse(`Current FIA Center Code` == 370,
+                                           370, `New FIA Center Code`),
+            `Current FIA Center` = ifelse(`Current FIA Center Code` == 370,
+                                          "Resettlement Center", `Current FIA Center`)) %>%
+     # HOHs with only MA S02 cases to 353 Central MA
+     lapply(mutate, `New FIA Center` = ifelse((`Program Count` == 1 &
+                    !is.na(`MA Coverage Group`) & `MA Coverage Group` == "S02"),
+                    "Central MA", `New FIA Center`),
+            `New FIA Center Code` = ifelse((`Program Count` == 1 & 
+                    !is.na(`MA Coverage Group`) & `MA Coverage Group` == "S02"),
+                    353, `New FIA Center Code`)) %>%
+     # Out of county
+     lapply(mutate, `New FIA Center` = ifelse(!`Residential Zip Code` %in% zips,
+                                              "Out of County", `New FIA Center`),
+            `New FIA Center Code` = ifelse(!`Residential Zip Code` %in% zips,
+                                           0, `New FIA Center Code`)) %>%
+     # Really old DOs
+     lapply(mutate, `Current FIA Center` = ifelse(is.na(`Current FIA Center`), "Old DO",
+                                                  `Current FIA Center`))
+
+rm(zips)
+```
+
+```{r Transfers: Penn-North}
+
+penn.in <- caseload %>%
+     lapply(filter, `New FIA Center` == "Penn-North") %>%
+     lapply(count, `Current FIA Center`)
+
+
+penn.out <- caseload %>%
+     lapply(filter, `Current FIA Center` == "Penn-North") %>%
+     lapply(count, `New FIA Center`)
+
+
+# Penn Jan Redets
+test <- new.redets.master %>% filter(`New FIA Center` == "Penn-North" | `Current FIA Center` == "Penn-North", !(`New FIA Center` == "Penn-North" & `Current FIA Center` == "Penn-North"), month(`Redetermination End Date`) == 1, year(`Redetermination End Date`) == 2018) %>%           select(`HOH IRN`, Last, First, `Current FIA Center`,
+                 `Redetermination End Date`, `New Redetermination Date`, `New FIA Center`)
+
+# Dividing by 08 level staff
+penn.transfers <- caseload[["hoh"]] %>%
+     filter((`New FIA Center` == "Penn-North" | `Current FIA Center` == "Penn-North") &
+                 !(`New FIA Center` == "Penn-North" & `Current FIA Center` == "Penn-North")) %>%
+     select(`HOH IRN`, `First`, `Last`, Birthdate, `Residential Zip Code`,
+            `Current FIA Center`, `Current FIA Center Code`, `New FIA Center`, `New FIA Center Code`)
+
+level08 <- import("CARES Access Level 08.xlsx", which = "Summary") %>%
+     # each staff can transfer 3/hr and can work 2 hr/day
+     mutate(`Case transfers per day` = `08 Level Staff` * 3 * 2,
+            `Total cases to process` = round(`Case transfers per day` *
+                 (nrow(penn.transfers) / sum(`Case transfers per day`))),
+            CumSum = cumsum(`Total cases to process`)) # days to complete transfers) 
+
+ExportExcel(level08, "Schedule Summary", "Penn North Case Transfer Assignments.xlsx", "new")
+
+
+
+level08.units <- list()
+
+start <- 1
+
+for (i in level08$DO) {
+     end <- level08$CumSum[level08$DO == i]
+     level08.units[[i]] <- penn.transfers[start:end,]
+     start <- end + 1
+     ExportExcel(level08.units[[i]], i, "Penn North Case Transfer Assignments.xlsx", "existing")
+}
+
+
+
+```
+
+
+```{r Caseload equalization, include=FALSE}
+equal <- list(
+     cases = caseload$au %>% 
+          mutate(`CARES ID` = as.numeric(`CARES ID`))%>% 
+          left_join(works, by = c("CARES ID" = "Client ID")) %>% ## Criterion 1: Active cases (already done)
+          filter(!duplicated(`AU #`), ## Criterion 2: Deduplicated AU numbers
+          !(`MA Coverage Group` %in% c("S02","T01","T02","T03","T04","T05", "T99", "L01",
+               "L98","L99"))), ## Criterion 3: MA coverage codes as proxies for SSI, exclude codes  
+
+# MD HEALTH CONNECTION ####
+## MA numbers include those customers who have cases in MHC. Even though MHC
+## customers are responsible for renewing their MA coverage on their own, it
+## still affects the center's workload. MHC customers often use the SAIL labs to 
+## complete renewals and staff provide reminders/assistance.
+
+# What we are doing in this section is creating a 'new' record for each HX case
+# because CARES does not capture each case separately like all the other
+# benefits
+
+## Finding only active cases with HX codes
+     mhc = caseload$au %>% 
+          mutate(`CARES ID` = as.numeric(`CARES ID`)) %>% 
+          left_join(works, by = c("CARES ID" = "Client ID")) %>%
+          filter(`Application ID` == "HX") %>%
+
+## Exclude ALL CASES for people who have both an MA program code + HX app ID
+## because we already counted them as an MA case when we filter for the
+## overall criteria
+
+## Clients who have HX codes have those codes across all their benefit types;
+## we will be counting MHC cases by a (deduplicated) record of any type of 
+## benefit associated with an HX code. This is a proxy for having a record for
+## benefit type HX. For this reason, we want to make sure we exclude all 
+## records, regardless of benefit, for people who have an MA + HX code.
+
+## Filtering out all records associated with an MA+HX combo
+          mutate(ma.hx = ifelse(`Program Code` == "MA" & `Fin Responsibility` == "RE", 1, 0)) %>%
+          group_by(`CARES ID`) %>%
+          filter(sum(ma.hx) < 1) %>%
+## Deduplicate HOH IRNs because the HX code 
+          distinct(`HOH IRN`, .keep_all = TRUE) %>%
+          mutate(`Program Code` = "HX") %>%
+          select(-ma.hx))
+
+equal <- merge(equal$cases, equal$mhc, all = TRUE)
+
+caseload.equal <- equal %>%
+     count(`New FIA Center`) %>%
+     rename(Center = `New FIA Center`, `Equalized Caseload after Reassignment` = n) %>%
+     left_join(equal %<>%
+                    count(`Current FIA Center`) %>%
+                    rename(Center = `Current FIA Center`, `Equalized Caseload Currently` = n))
+
+```
+
+
+```{r Planning numbers, warning = FALSE, echo=FALSE}
+planning <- rep(list(list(transfers = NA, transfers.graph = NA, redets = NA, redets.graph = NA)), 6)
+names(planning) <- names(params$new)
+
+for (i in names(params$new)){
+# Transfers
+     planning[[i]]$transfers <- caseload$hoh %>%
+          filter(`New FIA Center` == i, `Current FIA Center` != i)
+     planning[[i]]$transfers <- as.data.frame(
+          table(planning[[i]]$transfers$`Current FIA Center`)) %>%
+          mutate(Var1 = as.character(Var1)) %>%
+          arrange(desc(Freq))
+# Transfers Graph
+     planning[[i]]$transfers.graph <- planning[[i]]$transfers %>%
+          ggplot(aes(Var1, Freq)) +
+               geom_histogram(stat="identity", fill = "skyblue4") + theme_minimal() +
+               geom_text(aes(label = Freq),
+                    position = position_dodge(width = 1), 
+                    vjust = -.1, size = 3, fontface = "bold") +
+               theme(plot.title = element_text(size = 15, face = "bold"),
+                     axis.title.x = element_blank(), 
+                     axis.text.x = element_text(angle = 90, hjust = 1),
+                     legend.position = "none") +
+               scale_y_continuous(breaks = pretty_breaks(n = 10)) +
+               labs(title = "Centers from which Cases are Transferring",
+                    y = "Cases")
+# Redet Dates
+     planning[[i]]$redets <- caseload$hoh %>% filter(`New FIA Center` == i) %>%
+          mutate(`Redetermination End Date` = month(`Redetermination End Date`,
+               label = TRUE, abbr = TRUE))
+     planning[[i]]$redets <- as.data.frame(
+          table(planning[[i]]$redets$`Redetermination End Date`))
+     names(planning[[i]]$redets) <- c("Month of Redet", "Current Number of Cases")
+     planning[[i]]$redets$`Cases to Move` <-
+          round(mean(planning[[i]]$redets$`Current Number of Cases`)) - 
+               planning[[i]]$redets$`Current Number of Cases`
+     
+     
+# Redet Dates Graph
+     planning[[i]]$redets.graph <- planning[[i]]$redets %>%
+          ggplot(aes(`Month of Redet`, `Current Number of Cases`)) +
+               geom_histogram(stat="identity", fill = "skyblue4") + theme_minimal() +
+               geom_text(aes(label = `Current Number of Cases`),
+                    position = position_dodge(width = 1),
+                    vjust = -.1, size = 3, fontface = "bold") +
+               theme(plot.title = element_text(size = 15, face = "bold"),
+                     axis.title.x = element_blank(),
+                     legend.position = "none") +
+               scale_y_continuous(breaks = pretty_breaks(n = 10)) +
+               labs(title = "Months with Scheduled Redeterminations",
+                    y = "Cases")
+     }
+
+```
+
+```{r Reassign cases, include=FALSE, warning=FALSE}
+
+new.redets <- rep(list(list(cases = NA, summary = NA)), 6)
+names(new.redets) <- names(params$new)
+
+for (i in names(params$new)) {
+     # Create summary frame that shows how many cases still need to be moved
+     # from month to month
+     new.redets[[i]]$summary <- planning[[i]]$redets %>%
+          arrange(`Cases to Move`) %>%
+          mutate(`Month of Redet` = as.character(`Month of Redet`))
+     
+     # Create frame where each case will be given a new redet date
+     new.redets[[i]]$cases <- caseload$hoh %>%
+          filter(`New FIA Center` == i) %>%
+          mutate(`New Redetermination Date` = NA)
+     
+     # Continue reassigning while there are still cases to be moved
+     while (max(abs(new.redets[[i]]$summary$`Cases to Move`)) > 3) {
+          highest.month <- new.redets[[i]]$summary$`Month of Redet`[[1]]
+          highest.space <- new.redets[[i]]$summary$`Cases to Move`[[1]]
+          lowest.month <- new.redets[[i]]$summary$`Month of Redet`[[12]]
+          lowest.space <- new.redets[[i]]$summary$`Cases to Move`[[12]]
+          
+          
+          # Identify which cases currently assigned to month with most cases
+          new.redets[[i]]$cases %<>%
+               mutate(`Highest Month` = as.character(month(`Redetermination End Date`,
+                    label = TRUE, abbr = TRUE)) == highest.month) %>%
+               arrange(desc(`Highest Month`), !is.na(`New Redetermination Date`)) %>%
+               select(-`Highest Month`)
+          
+          # Only move as many cases as there is space
+          if (abs(highest.space) >= lowest.space) { 
+               new.redets[[i]]$cases$`New Redetermination Date`[1:lowest.space] <-
+                    lowest.month
+          } else if (abs(highest.space) < lowest.space) { 
+               new.redets[[i]]$cases$`New Redetermination Date`[1:abs(highest.space)] <-
+                    lowest.month
+          } else {
+               break
+               }
+          
+# Redet Dates
+     new.redets[[i]]$summary <- new.redets[[i]]$cases %>%
+          mutate(`Final Redetermination Date` = ifelse(is.na(`New Redetermination Date`),
+               as.character(month(`Redetermination End Date`, label = TRUE, abbr = TRUE)),
+               `New Redetermination Date`))
+     new.redets[[i]]$summary <- as.data.frame(
+          table(new.redets[[i]]$summary$`Final Redetermination Date`))
+     new.redets[[i]]$summary <- new.redets[[i]]$summary %>%
+          rename("Month of Redet" = Var1, "Current Number of Cases" = Freq) %>%
+          mutate(`Cases to Move` = round(mean(`Current Number of Cases`)) - 
+               `Current Number of Cases`,
+               `Month of Redet` = as.character(`Month of Redet`)) %>%
+          arrange(`Cases to Move`)
+     
+     cat(i, max(abs(new.redets[[i]]$summary$`Cases to Move`), "| "))
+     }
+     
+     if(exists("new.redets.master")){
+          new.redets.master <- rbind(new.redets.master, new.redets[[i]]$cases)
+     }
+     else{ new.redets.master <- new.redets[[i]]$cases
+     }
+}
+
+# Generate list of redets for upcoming month, by current FIA center
+# This is used at each center to change 
+transfers <- new.redets.master %>%
+     select(`HOH IRN`, Last, First, `Current FIA Center`,
+            `Redetermination End Date`, `New Redetermination Date`, `New FIA Center`) %>%
+     arrange(`Redetermination End Date`) %>%
+     filter(!is.na(`New Redetermination Date`) | `Current FIA Center` != `New FIA Center`)
+
+for (i in names(params$new)){
+     master <- new.redets.master %>%
+          select(`HOH IRN`, Last, First, `Current FIA Center`,
+                 `Redetermination End Date`, `New Redetermination Date`, `New FIA Center`) %>%
+          arrange(`Redetermination End Date`) %>%
+          filter(`Current FIA Center` == i,
+                 !is.na(`New Redetermination Date`) | `Current FIA Center` != `New FIA Center`)
+     
+     transfers <- master %>% filter(`Current FIA Center` != `New FIA Center`)
+          
+     redets <- master %>% filter(`Current FIA Center` == `New FIA Center`) %>% select(-`New FIA Center`)
+     
+     summary <- as.data.frame(Transfers = nrows(transfers), Redets = nrows(redets))
+     
+     ExportExcel(transfers, "Transfers", paste0("Outputs/", i, " Transactions.xlsx"), "new")
+     ExportExcel(redets, "Redets", paste0("Outputs/", i, " Transactions.xlsx"), "existing")
+     
+}
+
+```
+
+
+```{r Summary, warning = FALSE, include=FALSE}
+# Staffing
+staff <- GetFullStaff("Family Investment")
+
+clerks <- staff %>% 
+     filter(`Job Title` %in% c("Administrative Specialist Trainee", "Fiscal Accounts Clerk ",
+               "Fiscal Accounts Clerk II","Fiscal Clerk II","Office Assistant", "Office Clerk",
+               "Office Clerk Assistant","Office Clerk I","Office Clerk II",
+               "Office Processing Clerk II","Office Services Clerk","Office Services Clerk II"),
+          Program %in% c("Northeast Regional Office", "Penn-North",
+               "Dunbar-Orangeville", "Harbor View", "Northwest", "Hilton Heights"),
+          `Manager ID` != "W1058936") %>% # Removes specialized CCU unit
+     select(`Employee ID`, `Job Title`, `Program`) %>%
+     count(Program) %>%
+     rename(`Center` = Program, `Clerks Currently at Center` = n)
+
+fis <- staff %>% 
+     filter(`Job Title` %in% c("Family Investment Spec I", "Family Investment Spec II"),
+          Program %in% c("Northeast Regional Office", "Penn-North",
+               "Dunbar-Orangeville", "Harbor View", "Northwest", "Hilton Heights"),
+          `Manager ID` != "W1058936") %>% # Removes specialized CCU unit
+     select(`Employee ID`, `Job Title`, `Program`) %>%
+     count(Program) %>%
+     rename(`Center` = Program, `FIS Is/IIs Currently at Center` = n) %>%
+     left_join(clerks) %>%
+     left_join(codes)
+
+# Cross-tab
+summary <- list(
+     hoh = caseload$hoh %>%
+          count(`Current FIA Center`) %>%
+          rename(Center = `Current FIA Center`, `Households Currently at Center` = n) %>%
+          full_join(caseload$hoh %>%
+                         count(`New FIA Center`) %>%
+                         rename(Center = `New FIA Center`, `Households at Center after Reassignment` = n)) %>%
+          left_join(fis) %>%
+          mutate(`FIS Is/IIs Currently at Center` = as.integer(`FIS Is/IIs Currently at Center` - Outpost),
+                 `Household Difference` = `Households at Center after Reassignment` -
+                      `Households Currently at Center`) %>%
+          select(-Outpost, -Code),
+     client = caseload$client %>%
+          count(`Current FIA Center`) %>%
+          rename(Center = `Current FIA Center`, `Clients Currently at Center` = n) %>%
+          full_join(caseload$client %>%
+                         count(`New FIA Center`) %>%
+                         rename(Center = `New FIA Center`, `Clients at Center after Reassignment` = n)) %>%
+          mutate(`Client Difference` = `Clients at Center after Reassignment` -
+                      `Clients Currently at Center`))
+
+summary$master <- left_join(summary$hoh, summary$client) %>%
+     left_join(caseload.equal)
+
+summary$main <- summary$master %>%
+     filter(Center %in% centers$Center) %>%
+     select(-`FIS Is/IIs Currently at Center`, -`Clerks Currently at Center`,
+            -`Equalized Caseload Currently`, -`Equalized Caseload after Reassignment`)
+summary$other <- summary$master %>%
+     filter(!Center %in% centers$Center) %>%
+     select(-`FIS Is/IIs Currently at Center`, -`Clerks Currently at Center`,
+            -`Equalized Caseload Currently`, -`Equalized Caseload after Reassignment`)
+summary$fis <- summary$master %>%
+     filter(Center %in% centers$Center) %>%
+     select(Center, `Equalized Caseload Currently`, `Equalized Caseload after Reassignment`,
+            `FIS Is/IIs Currently at Center`) %>%
+     mutate(`FIS Is/IIs Caseload Ratio Currently` = as.integer(`Equalized Caseload Currently`
+                                                               / `FIS Is/IIs Currently at Center`),
+            `FIS Is/IIs Caseload Ratio after Reassignment` = as.integer(`Equalized Caseload after Reassignment`
+                                                                        / `FIS Is/IIs Currently at Center`),
+            `FIS Is/IIs to Move after Reassignment for 1:915 Caseload` =
+                 round(`Equalized Caseload after Reassignment`/915) - `FIS Is/IIs Currently at Center`)
+summary$clerk <- summary$master %>%
+     filter(Center %in% centers$Center) %>%
+     select(Center, `Equalized Caseload Currently`, `Equalized Caseload after Reassignment`,
+            `Clerks Currently at Center`) %>%
+     mutate(`Clerk Caseload Ratio Currently` = as.integer(`Equalized Caseload Currently`
+                                                          / `Clerks Currently at Center`),
+            `Clerk Caseload Ratio after Reassignment` = as.integer(`Equalized Caseload after Reassignment`
+                                                                   / `Clerks Currently at Center`),
+            `Clerk to Move after Reassignment for 1:2700 Caseload` =
+                 round(`Equalized Caseload after Reassignment`/2700) - `Clerks Currently at Center`)
+```
+
+```{r Final, warning = FALSE, include=FALSE}
+final <- rep(list(list(month.highest = NA, month.lowest = NA, 
+     transfer1 = NA, transfer2 = NA, staff.move = NA)), 6)
+names(final) <- names(params$new)
+
+for (i in names(params$new)) {
+final[[i]]$month.highest <- as.character(
+     planning[[i]]$redets$`Month of Redet`[planning[[i]]$redets$`Current Number of Cases` ==
+          max(planning[[i]]$redets$`Current Number of Cases`)])
+final[[i]]$month.lowest <- as.character(
+     planning[[i]]$redets$`Month of Redet`[planning[[i]]$redets$`Current Number of Cases` ==
+          min(planning[[i]]$redets$`Current Number of Cases`)])
+final[[i]]$transfer1 <- planning[[i]]$transfers$Var1[[1]]
+final[[i]]$transfer2 <-  planning[[i]]$transfers$Var1[[2]]
+final[[i]]$staff.move <- summary$`Staff to Move to New Center for 1:900 Caseload`[summary$Center == i]
+final[[i]]$month.avg <- as.character(round(mean(planning[[i]]$redets$`Current Number of Cases`)))
+}
+```
+
+
+
+# Dunbar-Orangeville
+### Cases to transfer between centers
+When cases are realigned, most of the cases coming to Dunbar-Orangeville will be coming from `r final[["Dunbar-Orangeville"]]$transfer1` and `r final[["Dunbar-Orangeville"]]$transfer2`.
+
+```{r Dunbar-Orangeville transfers, echo=FALSE, message=FALSE, warning=FALSE}
+print(planning[["Dunbar-Orangeville"]]$transfers.graph)
+```
+
+### Current spread of redeterminations
+When cases are realigned, the month of `r final[["Dunbar-Orangeville"]]$month.highest` will have the most redeterminations while the month of `r final[["Dunbar-Orangeville"]]$month.lowest` will have the fewest.
+
+```{r Dunbar-Orangeville redets, echo=FALSE, message=FALSE, warning=FALSE}
+print(planning[["Dunbar-Orangeville"]]$redets.graph)
+```
+
+In order to ensure that redeterminations are done evenly throughout the year, there should be about `r final[["Dunbar-Orangeville"]]$month.avg` cases processed each month. To achieve that, cases should be moved as such:
+`r kable(planning[["Dunbar-Orangeville"]]$redets)`
+
+
+### Staff to transfer between centers
+An estimated `r abs(final[["Dunbar-Orangeville"]]$staff.move)` FIS Is/IIs need to be moved `r ifelse(final[["Dunbar-Orangeville"]]$staff.move > 0, print("to"), print("from"))` Dunbar-Orangeville to balance caseloads across all centers:
+
+```{r Dunbar-Orangeville staffing, echo=FALSE, message=FALSE, warning=FALSE}
+summary %>% filter(Center == "Dunbar-Orangeville")  %>% select(-`Center Code`, -Center) %>% kable()
+```
+
+
+
+# Harbor View
+### Cases to transfer between centers
+When cases are realigned, most of the cases coming to Harbor View will be coming from `r final[["Harbor View"]]$transfer1` and `r final[["Harbor View"]]$transfer2`.
+
+```{r Harbor View transfers, echo=FALSE, message=FALSE, warning=FALSE}
+print(planning[["Harbor View"]]$transfers.graph)
+```
+
+### Current spread of redeterminations
+When cases are realigned, the month of `r final[["Harbor View"]]$month.highest` will have the most redeterminations while the month of `r final[["Harbor View"]]$month.lowest` will have the fewest.
+
+```{r Harbor View redets, echo=FALSE, message=FALSE, warning=FALSE}
+print(planning[["Harbor View"]]$redets.graph)
+```
+
+In order to ensure that redeterminations are done evenly throughout the year, there should be about `r final[["Harbor View"]]$month.avg` cases processed each month. To achieve that, cases should be moved as such:
+`r kable(planning[["Harbor View"]]$redets)`
+
+
+### Staff to transfer between centers
+An estimated `r abs(final[["Harbor View"]]$staff.move)` FIS Is/IIs need to be moved `r ifelse(final[["Harbor View"]]$staff.move > 0, print("to"), print("from"))` Harbor View to balance caseloads across all centers:
+
+```{r Harbor View staffing, echo=FALSE, message=FALSE, warning=FALSE}
+summary %>% filter(Center == "Harbor View")  %>% select(-`Center Code`, -Center) %>% kable()
+```
+
+
+
+# Penn-North
+### Cases to transfer between centers
+When cases are realigned, most of the cases coming to Penn-North will be coming from `r final[["Penn-North"]]$transfer1` and `r final[["Penn-North"]]$transfer2`.
+
+```{r Penn-North transfers, echo=FALSE, message=FALSE, warning=FALSE}
+print(planning[["Penn-North"]]$transfers.graph)
+```
+
+### Current spread of redeterminations
+When cases are realigned, the month of `r final[["Penn-North"]]$month.highest` will have the most redeterminations while the month of `r final[["Penn-North"]]$month.lowest` will have the fewest.
+
+```{r Penn-North redets, echo=FALSE, message=FALSE, warning=FALSE}
+print(planning[["Penn-North"]]$redets.graph)
+```
+
+In order to ensure that redeterminations are done evenly throughout the year, there should be about `r final[["Penn-North"]]$month.avg` cases processed each month. To achieve that, cases should be moved as such:
+`r kable(planning[["Penn-North"]]$redets)`
+
+
+### Staff to transfer between centers
+An estimated `r abs(final[["Penn-North"]]$staff.move)` FIS Is/IIs need to be moved `r ifelse(final[["Penn-North"]]$staff.move > 0, print("to"), print("from"))` Penn-North to balance caseloads across all centers:
+
+```{r Penn-North staffing, echo=FALSE, message=FALSE, warning=FALSE}
+summary %>% filter(Center == "Penn-North")  %>% select(-`Center Code`, -Center) %>% kable()
+```
+
+
+
+# Northwest
+### Cases to transfer between centers
+When cases are realigned, most of the cases coming to Northwest will be coming from `r final[["Northwest"]]$transfer1` and `r final[["Northwest"]]$transfer2`.
+
+```{r Northwest transfers, echo=FALSE, message=FALSE, warning=FALSE}
+print(planning[["Northwest"]]$transfers.graph)
+```
+
+### Current spread of redeterminations
+When cases are realigned, the month of `r final[["Northwest"]]$month.highest` will have the most redeterminations while the month of `r final[["Northwest"]]$month.lowest` will have the fewest.
+
+```{r Northwest redets, echo=FALSE, message=FALSE, warning=FALSE}
+print(planning[["Northwest"]]$redets.graph)
+```
+
+In order to ensure that redeterminations are done evenly throughout the year, there should be about `r final[["Northwest"]]$month.avg` cases processed each month. To achieve that, cases should be moved as such:
+`r kable(planning[["Northwest"]]$redets)`
+
+
+### Staff to transfer between centers
+An estimated `r abs(final[["Northwest"]]$staff.move)` FIS Is/IIs need to be moved `r ifelse(final[["Northwest"]]$staff.move > 0, print("to"), print("from"))` Northwest to balance caseloads across all centers:
+
+```{r Northwest staffing, echo=FALSE, message=FALSE, warning=FALSE}
+summary %>% filter(Center == "Northwest")  %>% select(-`Center Code`, -Center) %>% kable()
+```
+
+
+
+# Northeast Regional Office
+### Cases to transfer between centers
+When cases are realigned, most of the cases coming to Northeast Regional Office will be coming from `r final[["Northeast Regional Office"]]$transfer1` and `r final[["Northeast Regional Office"]]$transfer2`.
+
+```{r Northeast Regional Office transfers, echo=FALSE, message=FALSE, warning=FALSE}
+print(planning[["Northeast Regional Office"]]$transfers.graph)
+```
+
+### Current spread of redeterminations
+When cases are realigned, the month of `r final[["Northeast Regional Office"]]$month.highest` will have the most redeterminations while the month of `r final[["Northeast Regional Office"]]$month.lowest` will have the fewest.
+
+```{r Northeast Regional Office redets, echo=FALSE, message=FALSE, warning=FALSE}
+print(planning[["Northeast Regional Office"]]$redets.graph)
+```
+
+In order to ensure that redeterminations are done evenly throughout the year, there should be about `r final[["Northeast Regional Office"]]$month.avg` cases processed each month. To achieve that, cases should be moved as such:
+`r kable(planning[["Northeast Regional Office"]]$redets)`
+
+
+### Staff to transfer between centers
+An estimated `r abs(final[["Northeast Regional Office"]]$staff.move)` FIS Is/IIs need to be moved `r ifelse(final[["Northeast Regional Office"]]$staff.move > 0, print("to"), print("from"))` Northeast Regional Office to balance caseloads across all centers:
+
+```{r Northeast Regional Office staffing, echo=FALSE, message=FALSE, warning=FALSE}
+summary %>% filter(Center == "Northeast Regional Office")  %>% select(-`Center Code`, -Center) %>% kable()
+```
+
+
+
+# Hilton Heights
+### Cases to transfer between centers
+When cases are realigned, most of the cases coming to Hilton Heights will be coming from `r final[["Hilton Heights"]]$transfer1` and `r final[["Hilton Heights"]]$transfer2`.
+
+```{r Hilton Heights transfers, echo=FALSE, message=FALSE, warning=FALSE}
+print(planning[["Hilton Heights"]]$transfers.graph)
+```
+
+### Current spread of redeterminations
+When cases are realigned, the month of `r final[["Hilton Heights"]]$month.highest` will have the most redeterminations while the month of `r final[["Hilton Heights"]]$month.lowest` will have the fewest.
+
+```{r Hilton Heights redets, echo=FALSE, message=FALSE, warning=FALSE}
+print(planning[["Hilton Heights"]]$redets.graph)
+```
+
+In order to ensure that redeterminations are done evenly throughout the year, there should be about `r final[["Hilton Heights"]]$month.avg` cases processed each month. To achieve that, cases should be moved as such:
+`r kable(planning[["Hilton Heights"]]$redets)`
+
+### Staff to transfer between centers
+An estimated `r abs(final[["Hilton Heights"]]$staff.move)` FIS Is/IIs need to be moved `r ifelse(final[["Hilton Heights"]]$staff.move > 0, print("to"), print("from"))` Hilton Heights to balance caseloads across all centers:
+
+```{r Hilton Heights staffing, echo=FALSE, message=FALSE, warning=FALSE}
+summary %>% filter(Center == "Hilton Heights")  %>% select(-`Center Code`, -Center) %>% kable()
+```

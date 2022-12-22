@@ -1,0 +1,13 @@
+*.csv, *.xlsx 
+*.CSV
+docs/Fees by Violation.png
+*.xlsx
+inputs/city_council_dist.dbf
+inputs/city_council_dist.prj
+inputs/city_council_dist.shx
+outputs/Camera Revenue by Council Dist - Map.html
+inputs/city_council_dist.shp
+.Rproj.user/8AF83641/ctx/ctx-60209/environmentTmp
+.Rproj.user/8AF83641/ctx/ctx-60209/plots_dir/empty.png
+*.pper
+*.Rdata

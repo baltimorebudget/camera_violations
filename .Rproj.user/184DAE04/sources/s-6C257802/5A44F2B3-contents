@@ -1,0 +1,45 @@
+library(tidyverse)
+library(lubridate)
+library(bbmR)
+library(magrittr)
+
+load("Data/Camera Violations 2018-12-03.Rdata")
+
+# This is how you normally input data
+# library(rio)
+# data <- import("test.xlsx")
+
+violations <- camera %>%
+  mutate_at(vars(ends_with("DATE")), ymd) %>% 
+  mutate(Fees = case_when(`VIOL CODE` %in% c(30, 31) ~ 75,
+                          `VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
+                          `VIOL CODE` == 36 ~ 0,
+                          `VIOL CODE` == 37 ~ 125,
+                          `VIOL CODE` == 38 ~ 250),
+         `VIOL MONTH` = ymd(paste0(year(`VIOL DATE`), "-", month(`VIOL DATE`), "-01")),
+         `Fiscal Year` = get_fy(`VIOL DATE`))
+
+tag <- violations %>%
+  count(`Fiscal Year`, STATUS, TAG, `VIOL CODE`, `VIOL MONTH`)
+
+for (i in unique(tag$`Fiscal Year`)) {
+  tag %>%
+    filter(`Fiscal Year` == i) %>%%T>%
+    export_excel(., "Violations", paste0("outputs/by_tag/violations_fiscal_", i, ".xlsx"), "new")
+}
+  
+summary <- violations %>%
+  count(LOCATION, `VIOL CODE`)
+
+summary <- violations %>%
+  group_by(LOCATION, `VIOL CODE`) %>%
+  summarize(Fees = sum(Fees, na.rm = TRUE))
+
+
+tag <- violations %>%
+  count(TAG, LOCATION, Fees) %>%
+  arrange(-n)
+
+tag.summary <- violations %>%
+  group_by(TAG) %>%
+  summarize(Fees = sum(Fees, na.rm = TRUE))

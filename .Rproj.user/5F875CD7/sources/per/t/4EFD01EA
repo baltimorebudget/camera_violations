@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1547158285690.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3743066561",
+    "id" : "4EFD01EA",
+    "lastKnownWriteTime" : 1547158307,
+    "last_content_update" : 1547158307665,
+    "path" : "G:/Analyst Folders/Lillian/Camera Violations/Clean Data.R",
+    "project_path" : "Clean Data.R",
+    "properties" : {
+        "cursorPosition" : "6,0",
+        "scrollLine" : "0",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 9,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

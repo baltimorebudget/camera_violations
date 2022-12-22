@@ -1,0 +1,29 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1545421648939.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "CF4AF64D",
+    "lastKnownWriteTime" : 1545421576,
+    "last_content_update" : 1545421648939,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "C7E05A9D",
+        "caption" : "violations",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=violations&cache_key=C7E05A9D",
+        "displayedObservations" : "794199",
+        "environment" : "",
+        "object" : "violations",
+        "preview" : "0",
+        "totalObservations" : "794199",
+        "variables" : "9"
+    },
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_dataframe"
+}

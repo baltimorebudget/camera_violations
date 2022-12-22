@@ -1,0 +1,87 @@
+# Where the money comes from
+
+where.from <- data$revenue %>%
+  mutate(Type = case_when(
+              `Summary Ref.` == "Property Taxes" ~ "Property Taxes",
+              `Summary Ref.` == "Income Taxes" ~ "Income Taxes",
+              `Summary Ref.` %in% c("Video Lottery Terminal", "Energy Tax",
+                                    "Telecommunication Tax", "Net Hotel Tax",
+                                    "Recordation & Transfer Taxes", "Admission Tax",
+                                    "All Other Local Taxes & Tax Credits") ~ "Other Local Taxes",
+              `Summary Ref.` %in% c("Other Charges for Current Services", # general fund
+                    "Charges for Central City Services", "Impounding Cars - Storage and Towing",
+                    "Sheriff - District Court Services", "Sanitation and Waste Removal",
+                    "General Revenue Highway") |
+                # other funds; wanted to use revenue name for descriptiveness but sometimes
+                # multiple funds have the same revenue name
+                `Revenue Account` %in% c("B076-759", # Temporary Parking Lots,
+                                      "B076-760", # Parking Garages,
+                                      "B076-866", # Booting Fee,
+                                      "B076-867", # ZIPCAR Income",
+                                      "B076-872", # Miscellaneous Revenue,
+                                      "B075-664", # Parking Meters,
+                                      "B071-839", # Metered Water - Carroll County
+                                      "B071-840", # Metered Water - City
+                                      "B071-841", # Metered Water - Baltimore County
+                                      "B071-842", # Metered Water - Anne Arundel County
+                                      "B071-843", # Metered Water - Howard County
+                                      "B071-844", # Metered Water - Harford County
+                                      "B071-846", # Special Water Supply Service
+                                      "B071-848", # Private Fire Protection Service
+                                      "B071-849", # Fire Hydrant Permits
+                                      "B071-854", # Water Charges to City Agencies
+                                      "B071-857", # Reimbursable Billing Costs
+                                      "B071-858", # Penalties
+                                      "B070-839", # Waste Water Utility Penalties 
+                                      "B070-825", # Sewerage Charges - City
+                                      "B070-826", # Sewerage Charges - Counties
+                                      "B070-827", # Treated Effluent - Bethlehem Steel
+                                      "B070-831", # Sewerage Charges - City Agencies
+                                      "B070-832", # Industrial Waste Surcharge - City
+                                      "B070-832", # Industrial Waste Surcharge - Counties
+                                      "B070-837", # Pretreatment Permits
+                                      "B072-845", # Stormwater Utility Penalties
+                                      "B072-790", # Stormwater Management Fee
+                                      "B072-791", # Sediment and Erosion Control Fee
+                                      "B072-825", # Stormwater Fee
+                                      "B072-835") ~ "Charges for Services", # Interest Income
+              # Use of Money and Property -- diff results for FY19 bc I think parking mgmt B076-201 was left out
+              `Summary Ref.` %in% c("Other Use of Money and Property", "Earnings on Investments",
+                                    "Convention Center") |
+                `Revenue Account` %in% c("B076-201", # Parking Mgmt Rental of Property
+                                         "B075-579", # Parking Ent Garage Income
+                                         "B071-851", # Water - Rental Real Property,
+                                         "B071-856", # Water Utility Interest Income
+                                         "B070-835", # Waste Water Utility Interest Income
+                                         "B024-249", # Conduit Rental
+                                         "B073-200", # L&G Enterprise Earnings on Investments
+                                         "B073-202") ~ "Use of Money & Property", # L&G Enterprise Interest on Loans
+              `Summary Ref.` == "Highway User Revenues" ~ "State Shared Taxes",
+              `Summary Ref.` %in% c("General Government", "Public Safety and Regulations", "Health",                                
+                                "Highways", "Private and Federal Grants",
+                                "Income Disparity Grant",  "Other Fines and Forfeits", 
+                                "Forfeitures Drug/Gambling Contraband", "Environmental Citations",
+                                "Teachers Retirement Supplemental Grant", "Other State Grants",
+                                "Local Health Operations Grant",  "Library Aid",
+                                "Other Revenues", "Prior Year Fund Balance") ~ "All Other")) %>%
+  group_by(Type) %>%
+  summarize(!!sym(paste0("FY", params$fy, " ", params$phase)) :=
+              sum(!!sym(paste0("FY", params$fy, " ", params$phase)), na.rm = TRUE)) %>%
+  bind_rows(data$expend %>%
+    group_by(`Fund Name`) %>%
+    summarize(!!sym(paste0("FY", params$fy, " ", params$phase)) :=
+                sum(!!sym(paste0("FY", params$fy, " ", params$phase)), na.rm = TRUE)) %>%
+    filter(`Fund Name` %in% c("Federal", "State", "Special")) %>%
+    rename(Type = `Fund Name`) %>%
+    mutate(Type = paste(Type, "Grants"))) %>%
+  filter(!is.na(Type)) %>%
+  mutate(Percent = !!sym(paste0("FY", params$fy, " ", params$phase)) /
+           sum(!!sym(paste0("FY", params$fy, " ", params$phase)))) %>%
+  arrange(desc(Percent))
+
+ggplot(where.from, aes(x = "", y = Percent, fill = Type)) +
+  gg_pie +
+  geom_text(aes(label = format_m(!!sym(paste0("FY", params$fy, " ", params$phase)))),
+            position = position_stack(vjust = 0.5)) +
+  labs(title = "Where the Money Comes From",
+       subtitle = paste("Total:", format_b(sum(use[[paste0("FY", params$fy, " ", params$phase)]]))))

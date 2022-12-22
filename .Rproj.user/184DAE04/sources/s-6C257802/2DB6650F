@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1639175728877.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "2DB6650F",
+    "lastKnownWriteTime" : 1639175748,
+    "last_content_update" : 1639175748691,
+    "path" : "G:/Analyst Folders/Lillian/revenue/camera_violations/Camera Projections.R",
+    "project_path" : "Camera Projections.R",
+    "properties" : {
+        "cursorPosition" : "10,19",
+        "scrollLine" : "0"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

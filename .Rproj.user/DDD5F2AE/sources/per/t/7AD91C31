@@ -1,0 +1,29 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1572982377682.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "7AD91C31",
+    "lastKnownWriteTime" : 2466321629217909346,
+    "last_content_update" : 1572982377682,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "726AA1E6",
+        "caption" : "cameras",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=cameras&cache_key=726AA1E6",
+        "displayedObservations" : "1349459",
+        "environment" : "",
+        "object" : "cameras",
+        "preview" : "0",
+        "totalObservations" : "1349459",
+        "variables" : "7"
+    },
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_dataframe"
+}

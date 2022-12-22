@@ -1,0 +1,279 @@
+.libPaths("C:/Users/sara.brumfield2/.conda/envs/bbmr/Lib/R/library")
+library(tidyverse)
+library(lubridate)
+library(rio)
+library(magrittr)
+library(ggplot2)
+library(ggmap)
+library(htmlwidgets)
+library(jsonlite)
+.libPaths("G:/Data/r_library")
+library(rgdal)
+library(leaflet)
+library(sf)
+source("G:/Analyst Folders/Lillian/_r/bbmr_functions.R")
+
+# https://r-spatial.github.io/mapview/articles/articles/mapview_04-popups.html
+
+# Camera data ####
+
+#camera.loc <- cameras %>%
+camera.loc %>%
+  distinct(Location) %>%
+  mutate(`Clean Location` = paste(tools::toTitleCase(tolower(
+    gsub(" EB| WB| NB| SB| BLK", "", Location, ignore.case = TRUE))),
+                 "Baltimore, MD"))
+
+corrections <- list(
+  c("\\sNort[hern Pkwy]*\\sBaltimore", " Northern Pkwy Baltimore"),
+  c("\\sReisters[town]*\\sBaltimore", " Reisterstown Rd Baltimore"),
+  c("\\sCold Spr[ing]*\\sBaltimore", " Cold Spring Ln Baltimore"),
+  c("\\sBelved[ere]*\\sBaltimore", " Belvedere Ave Baltimore"),
+  c("\\sPark Hei[ghts]*\\sBaltimore", " Park Heights Ave Baltimore"),
+  c("\\sParkheights [Ave]*\\sBaltimore", " Park Heights Ave Baltimore"),
+  c("\\sWindsor[ Mill]*\\sBaltimore", " Windsor Mill Rd Baltimore"),
+  c("\\sMlk Jr[ Bldv]*\\sBaltimore", " Martin Luther King Blvd Baltimore"),
+  c("\\sGwynns Fa[lls]*\\sBaltimore", " Gwynns Falls Pky Baltimore"),
+  c("\\sForest P[ark]*\\sBaltimore", " Forest Park Ave Baltimore"),
+  c("\\sNational Pi[ke]*\\sBaltimore", " National Pike Baltimore"),
+  c("\\sGreen Sp[ring]]*\\sBaltimore", " Green Spring Baltimore"),
+  c("\\sS\\sBaltimore", " St Baltimore"),
+  c("\\sD\\sBaltimore", " Dr Baltimore"),
+  c("\\sBl[vd]*\\sBaltimore", " Blvd Baltimore"))
+
+for (i in 1:length(corrections)) {
+  camera.loc$`Clean Location` <- gsub(corrections[[i]][1], # pattern
+       corrections[[i]][2], # replacement
+       camera.loc$`Clean Location`,
+       ignore.case = TRUE)
+}
+
+# export(camera.loc, "Inputs/To Be Geocoded.csv")
+
+camera.loc <- import("Inputs/Geocoded Cameras.csv") %>%
+  rename(lat = Latitude, lon = Longitude) %>%
+  mutate_at(vars(c("lat", "lon")), as.numeric)
+
+# test <- httr::POST("https://api.geocod.io/v1.4/geocode", 
+#                    body = 
+#                      c(list(api_key = "dc2f562b44a2144babfdcaab54c1df64c561555"),
+#                        camera.loc$`Clean Location`),
+#                    encode = "json") %>%
+#   content() %>%
+#   toJSON() %>%
+#   fromJSON()
+
+#library not working
+council.dist <- st_read("inputs","city_council_dist", stringsAsFactors = FALSE) %>%
+  mutate(area_name = as.numeric(area_name))
+
+# file path = //balt-fileld-srv/legacy/BBMR CAMERA/
+cameras <- import("L:/BBMR_CSV_FILE_20220402.CSV") %>%
+  set_colnames(tools::toTitleCase(tolower(names(.)))) %>%
+  mutate(Type = case_when(`Viol Code` == 30 ~ "Red light",
+                          `Viol Code` == 31 ~ "Right on red",
+                          `Viol Code` == 32 ~ "Fixed camera speed",
+                          `Viol Code` == 33 ~ "Mobile camera speed",
+                          `Viol Code` == 34 ~ "Fixed camera speed (diff rate)",
+                          `Viol Code` == 35 ~ "Work zone speed violation",
+                          `Viol Code` %in% 36:38 ~ "Comm vehicle height"),
+         Fees = case_when(`Viol Code` %in% c(30, 31) ~ 75,
+                          `Viol Code` %in% c(32, 33, 34, 35) ~ 40 ,
+                          `Viol Code` == 36 ~ 0,
+                          `Viol Code` == 37 ~ 125,
+                          `Viol Code` == 38 ~ 250),
+         `Paid Date` = ymd(`Paid Date`),
+         Month = paste0(year(`Paid Date`), "-", str_pad(month(`Paid Date`), 2, "left", "0"))) %>%
+  filter(!is.na(`Paid Date`)) %>%
+  group_by(Location) %>%
+  mutate(Types = paste(sort(unique(Type)), collapse = ", ")) %>%
+  group_by(Location, Month) %>%
+  mutate(Count = n(),
+    Fees = sum(Fees)) %>%
+  distinct(Location, Month, Types, Count, Fees) %>%
+  left_join(camera.loc) %>%
+  ungroup() #%>%
+  #st_as_sf(coords=c("lon","lat"), crs = st_crs(council.dist))
+
+# check if any cameras have been moved
+# test <- cameras %>%
+#   ungroup() %>%
+#   group_by(Location) %>%
+#   summarize(`Last` = max(ymd(paste0(Month, "-01"))))
+
+# Baltimore base map + districts ####
+
+# bmore.borders <- c(top = 39.3719,
+#                    bottom = 39.1977,
+#                    right = -76.5294,
+#                    left = -76.7122)
+# 
+# base.map <- ggmap(
+#   get_stamenmap(bbox = bmore.borders, zoom = 13,
+#                 maptype = "toner-lite", crop = FALSE))
+
+# spTransform(CRS("+init=epsg:3857"))
+
+# map <- base.map +
+#   geom_polygon(data = council.dist, aes(x = long, y = lat, group = group),
+#                fill = "blue", colour = "blue", alpha = 0.2) +
+#   geom_point(data = cameras, aes(x = lon, y = lat))
+
+# Intersection ####
+## sf won't load
+## work around below
+#int <- sf::st_intersection(cameras, council.dist) %>%
+#as.data.frame(.) %>%
+df<- select(cameras, `Location`,`Types`, `Month`, `Fees`) %>%
+  #mutate(Date = lubridate::ym(df$Month))
+  mutate(Date = df$Month)
+df$Date <- format(df$Date, "%Y-%m")
+
+df %>%
+  arrange(df$Date) %>%
+  group_by(`Location`, `Date`)
+  #mutate(
+    #`Month Installed` = min(Month))
+    #`Location Total Fees` = sum(Fees, na.rm = TRUE),
+    #`Location Total Citations` = sum(Count, na.rm = TRUE),
+    #`Location Median Mo Citations` = median(Count, na.rm = TRUE),
+    #`Location Median Mo Fees` = median(Fees, na.rm = TRUE)) #%>% 
+  #select(-(acre),-(area_type:cntct_eml), -(cntct_phn:geometry),
+  #       District = area_name, Councilmember = cntct_nme)
+
+
+df2 <- select(df, -Month) %>%
+  arrange(Date)
+pivot <- pivot_wider(data = df2, names_from = `Date`, values_from = Fees)
+pivot$Total<- rowSums(pivot[,c(-1, -2)])
+export_excel(pivot, "Cameras", "Camera Revenue by Month and Location_Apr 2022.xlsx", "new")
+
+# Interactive map
+
+map.cameras <- int %>%
+  distinct(Location, District, Councilmember, Types, `Month Installed`,
+           `Location Total Citations`, `Location Total Fees`,
+           `Location Median Mo Citations`, `Location Median Mo Fees`) %>%
+  left_join(camera.loc %>% select(Location, lon, lat)) %>%
+  group_by(lon, lat) %>%
+  mutate(Jitter = n()) %>%
+  ungroup() %>%
+  # manually jitter icons
+  mutate(
+    lat = case_when(
+      Jitter > 1 & grepl("SB" , Location) ~ lat - 0.0005,
+      Jitter > 1 & grepl("NB" , Location) ~ lat + 0.0005,
+      TRUE ~ lat),
+         lon = case_when(
+      Jitter > 1 & grepl("WB" , Location) ~ lon - 0.0005,
+      Jitter > 1 & grepl("EB" , Location) ~ lon + 0.0005,
+      TRUE ~ lon),
+    Color = case_when(Types == "Fixed camera speed" ~ "blue",
+                      Types == "Red light, Right on red" ~ "darkred",
+                      Types == "Red light" ~ "red",
+                      Types == "Comm vehicle height" ~ "purple"))
+
+icons <- awesomeIcons(icon = "whatever",
+                      iconColor = "black",
+                      library = "ion",
+                      markerColor = map.cameras$Color)
+
+map.dist <- council.dist %>%
+  left_join(
+    int %>%
+    # collapse red light only and red light plus right on red for district labelling purposes
+    mutate(Types = ifelse(Types == "Red light", "Red light, Right on red", Types)) %>%
+    group_by(District, Councilmember, Types) %>%
+    summarize(Cameras = n_distinct(Location),
+           Citations = sum(Count),
+           Fees = sum(Fees)) %>%
+    group_by(District, Councilmember) %>%
+    mutate(`District Cameras` = sum(Cameras),
+             `District Citations` = sum(Citations),
+             `District Fees` = sum(Fees)) %>%
+    gather(variable, value, Cameras:Fees) %>%
+    unite(temp, Types, variable) %>%
+    spread(temp, value, fill = 0) %>%
+    ungroup(),
+  by = c("area_name" = "District"))
+
+map <- leaflet(options = ) %>%
+  setView(lng = -76.6122, lat = 39.2904, zoom = 12) %>%
+  addProviderTiles(providers$Stamen.TonerLite, group = "Base") %>%
+  addPolygons(
+    group = "District",
+    data = map.dist,
+    weight = 1, fillOpacity = 0.2,
+    label = paste("District", map.dist$area_name),
+    popup = paste(
+      "<style>
+        table, th, td {
+          border: 1px solid grey;
+          border-collapse: collapse;
+          padding: 3px;
+        }
+        th {
+          text-align: center;
+        } 
+        td {
+          text-align: right;
+        } 
+      </style>
+
+      <strong>District:</strong>", map.dist$area_name,
+      "<br /><strong>Councilmember:</strong>", map.dist$Councilmember,
+
+      "<br /><br />
+      <table style='width:100%'>
+        <tr>
+          <th>Type</th>
+          <th>Cameras</th>
+          <th>Citations</th>
+          <th>Revenue</th>
+        </tr>
+        <tr>
+          <td>Speed</td>
+          <td>", map.dist$`Fixed camera speed_Cameras`, "</td>
+          <td>", scales::comma(map.dist$`Fixed camera speed_Citations`), "</td>
+          <td>", scales::dollar(map.dist$`Fixed camera speed_Fees`), "</td>
+        </tr>
+        <tr>
+          <td>Red/Right on Red</td>
+          <td>", map.dist$`Red light, Right on red_Cameras`, "</td>
+          <td>", scales::comma(map.dist$`Red light, Right on red_Citations`), "</td>
+          <td>", scales::dollar(map.dist$`Red light, Right on red_Fees`), "</td>
+        </tr>
+        <tr>
+          <td>Comm Vehicle Height</td>
+          <td>", map.dist$`Comm vehicle height_Cameras`, "</td>
+          <td>", scales::comma(map.dist$`Comm vehicle height_Citations`), "</td>
+          <td>", scales::dollar(map.dist$`Comm vehicle height_Fees`), "</td>
+        </tr>
+        <tr>
+          <td>Total</td>
+          <td>", map.dist$`District Cameras`, "</td>
+          <td>", scales::comma(map.dist$`District Citations`), "</td>
+          <td>", scales::dollar(map.dist$`District Fees`), "</td>
+        </tr>
+      </table>"),
+    highlightOptions = highlightOptions(color = "white",  weight = 4,
+                                                  fillOpacity = 0.7,
+                                                  bringToFront = TRUE)) %>%
+  addAwesomeMarkers(data = map.cameras, ~lon, ~lat,
+             icon = icons,
+             popup = paste0("<strong>Camera:</strong> ", map.cameras$Location,
+                            "<br /><strong>Types:</strong> ", map.cameras$Types,
+                            "<br /><strong>District:</strong> ", map.cameras$District,
+                            "<br /><strong>Month Installed:</strong> ", map.cameras$`Month Installed`,
+                            "<br /><br /><strong>Citations:</strong> ", scales::comma(map.cameras$`Location Total Citations`),
+                            "<br /><strong>Revenue:</strong> ", scales::dollar(map.cameras$`Location Total Fees`),
+                            "<br /><strong>Median Monthly Citations:</strong> ", scales::comma(map.cameras$`Location Median Mo Citations`),
+                            "<br /><strong>Median Monthly Revenue:</strong> ", scales::dollar(map.cameras$`Location Median Mo Fees`, accuracy = 1)),
+              label = map.cameras$Location) %>%
+  addLayersControl(
+    overlayGroups = c("District"),
+    options = layersControlOptions(collapsed = FALSE))
+
+saveWidget(map, "Camera Revenue by Council Dist - Map.html")
+
+

@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1639175719455.000,
+    "dirty" : true,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "5A44F2B3",
+    "lastKnownWriteTime" : 1639204560,
+    "last_content_update" : 1639209416825,
+    "path" : "G:/Analyst Folders/Lillian/revenue/camera_violations/Camera Violations.R",
+    "project_path" : "Camera Violations.R",
+    "properties" : {
+        "cursorPosition" : "26,34",
+        "scrollLine" : "0"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

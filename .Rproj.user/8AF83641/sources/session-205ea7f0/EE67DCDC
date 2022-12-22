@@ -1,0 +1,26 @@
+{
+    "id": "EE67DCDC",
+    "path": "G:/Analyst Folders/Sara Brumfield/monthly_reports/camera_violations/Camera Violations.R",
+    "project_path": "Camera Violations.R",
+    "type": "r_source",
+    "hash": "3860695771",
+    "contents": "",
+    "dirty": false,
+    "created": 1652706857425.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "58,0",
+        "scrollLine": "45"
+    },
+    "folds": "69|22|82|0|\n87|6|110|21|\n111|23|118|0|\n119|25|149|0|\n234|0|149|0|\n242|0|149|0|\n",
+    "lastKnownWriteTime": 1671726370,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1671726370056,
+    "read_only": false,
+    "read_only_alternatives": []
+}

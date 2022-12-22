@@ -1,0 +1,29 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1546548925791.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "3E1331E7",
+    "lastKnownWriteTime" : 7306002128583287653,
+    "last_content_update" : 1546548925791,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "FFE20153",
+        "caption" : "decline",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=decline&cache_key=FFE20153",
+        "displayedObservations" : 17,
+        "environment" : "",
+        "object" : "decline",
+        "preview" : 0,
+        "totalObservations" : 17,
+        "variables" : 2
+    },
+    "relative_order" : 7,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_dataframe"
+}

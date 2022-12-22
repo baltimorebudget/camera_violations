@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1643309909212.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "509275735",
+    "id" : "4F0EBE19",
+    "lastKnownWriteTime" : 1654537450,
+    "last_content_update" : 1654537450989,
+    "path" : "G:/Analyst Folders/Sara Brumfield/revenue/camera_violations/Camera Projections.R",
+    "project_path" : "Camera Projections.R",
+    "properties" : {
+        "cursorPosition" : "28,56",
+        "scrollLine" : "13"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
