@@ -17,6 +17,7 @@ data <- import("L:/BBMR_CSV_FILE_20230104.CSV")
 
 violations <- data %>%
   mutate_at(vars(ends_with("DATE")), ymd) %>% 
+  ##filter out data from previous FYs starting Feb 2023
   mutate(Fees = case_when(`VIOL CODE` %in% c(30, 31) ~ 75,
                           `VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
                           `VIOL CODE` == 36 ~ 0,
@@ -41,6 +42,7 @@ violations <- data %>%
                             TRUE ~ STATUS),
          `Year` = format(`VIOL DATE`, format = "%Y"))
 
+#this can take a while
 violations <- violations %>% mutate(`Year` = format(`VIOL DATE`, format = "%Y"),
                                     `Month` = format(`VIOL DATE`, format = "%m"),
                                     `Year-Month` = format(`VIOL DATE`, format = "%Y-%m"))
@@ -56,16 +58,47 @@ paid <- violations %>%
   arrange(`Year-Month`) %>%
   pivot_wider(names_from = `Year-Month`, values_from = CITATION, values_fn = list(CITATION = length))
 
-unpaid <- violations %>%
-  filter(Status != "Paid in full" & Status != "Balance abated (paid)") %>%
-  select(TAG, Type, `VIOL DATE`, Status) %>%
-  arrange(TAG)
+status <- violations %>%
+  select(`Year-Month`, `CITATION`, `Type`) %>%
+  arrange(`Year-Month`) %>%
+  pivot_wider(names_from = `Year-Month`, values_from = CITATION, values_fn = list(CITATION = length))
 
-file_path = "G:/BBMR - Revenue Team/2. Revenue Accounts/A001 - General Fund/191-193 - Speed - Red-Light Violations"
+##on hold for now
+# unpaid <- violations %>%
+#   select(CITATION, TAG, Type, `VIOL DATE`, Status, Year) %>%
+#   filter(Status != "Paid in full" & Status != "Balance abated (paid)") %>%
+#   arrange(TAG)
+# 
+# #find tickets more than 3 years old, count as lost revenue
+# #locates tags where ALL tickets are from 2019 or earlier
+# lost <- violations %>%
+#   filter((Status != "Paid in full" & Status != "Balance abated (paid)")) %>%
+#   select(CITATION, TAG, Type, `VIOL DATE`, Status, Year) %>%
+#   mutate(Year = as.numeric(Year)) %>%
+#   group_by(TAG) %>%
+#   summarise(count = n(),
+#             max = max(Year)) %>%
+#   filter(max <= 2019) %>%
+#   ungroup() 
+# 
+# lost_tags <- lost$TAG
+# 
+# lost_rev <- lost %>% left_join(unpaid, by = c("TAG")) %>%
+#   select(-count, -max) %>%
+#   relocate(TAG, .after = CITATION) %>%
+#   arrange(TAG)
+# 
+# ##refine unpaid data to omit lost revenue citations
+# unpaid <- unpaid %>% 
+#   filter(!(TAG %in% lost_tags))
+
+
+# file_path = "G:/BBMR - Revenue Team/2. Revenue Accounts/A001 - General Fund/191-193 - Speed - Red-Light Violations"
 
 export_excel(issued, "Issued", paste0("outputs/Camera Violations ", Sys.Date() ,".xlsx"), "new")
 export_excel(paid, "Paid", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 export_excel(unpaid, "Unpaid", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
+export_excel(lost_rev, "Lost Revenue", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 
 ##filtered for FY end ====
 # violations_FY22 <- violations %>% filter(`Year-Month` < "2022-07")
