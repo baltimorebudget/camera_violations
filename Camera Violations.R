@@ -4,6 +4,7 @@
 library(tidyverse)
 library(lubridate)
 library(rio)
+library(janitor)
 devtools::load_all("G:/Analyst Folders/Sara Brumfield/_packages/bbmR")
 
 # .libPaths("G:/Data/r_library")
@@ -22,7 +23,9 @@ violations <- data %>%
                           `VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
                           `VIOL CODE` == 36 ~ 0,
                           `VIOL CODE` == 37 ~ 125,
-                          `VIOL CODE` == 38 ~ 250),
+                          `VIOL CODE` == 38 ~ 250,
+                          `VIOL CODE` == 99 ~ 32,
+                          `VIOL CODE` %in% c(2, 3) ~ 102),
          Type = case_when(`VIOL CODE` == 30 ~ "Red Light Violation",
                           `VIOL CODE` == 31 ~ "Right on Red",
                           `VIOL CODE` == 32 ~ "Speed Violation",
@@ -31,9 +34,13 @@ violations <- data %>%
                           `VIOL CODE` == 35 ~ "No Description",
                           `VIOL CODE` == 36 ~ "No Description",
                           `VIOL CODE` == 37 ~ "No Description",
-                          `VIOL CODE` == 38 ~ "No Description"),
-         `VIOL MONTH` = ymd(paste0(year(`VIOL DATE`), "-", month(`VIOL DATE`), "-01"))) %>%
-  mutate(Status = case_when(STATUS == "P" ~ "Paid in full", 
+                          `VIOL CODE` == 38 ~ "No Description",
+                          `VIOL CODE` == 2 ~ "No Stopping or No Parking Pimlico Event",
+                          `VIOL CODE` == 3 ~ "Obstruct/Impeding Flow of Traffic",
+                          `VIOL CODE` == 99 ~ "All Other Stopping or Parking Violations",
+                          `VIOL CODE` == NA ~ "Unknown"),
+         `VIOL MONTH` = ymd(paste0(year(`VIOL DATE`), "-", month(`VIOL DATE`), "-01")),
+         Status = case_when(STATUS == "P" ~ "Paid in full", 
                             STATUS == "O" ~ "Open",
                             (STATUS == "A" & is.na(`PAID DATE`)) ~ "Balance abated (unpaid)",
                             (STATUS == "A" & !is.na(`PAID DATE`)) ~ "Balance abated (paid)",
@@ -58,10 +65,19 @@ paid <- violations %>%
   arrange(`Year-Month`) %>%
   pivot_wider(names_from = `Year-Month`, values_from = CITATION, values_fn = list(CITATION = length))
 
-status <- violations %>%
-  select(`Year-Month`, `CITATION`, `Type`) %>%
+status_count <- violations %>%
+  select(`Year-Month`, `CITATION`, `Type`, Status) %>%
   arrange(`Year-Month`) %>%
-  pivot_wider(names_from = `Year-Month`, values_from = CITATION, values_fn = list(CITATION = length))
+  pivot_wider(names_from = `Year-Month`, values_from = CITATION, values_fn = list(CITATION = length)) %>%
+  arrange(Type, Status) %>%
+  remove_empty(which = "rows", quiet = FALSE)
+
+status_fees <- violations %>%
+  select(`Year-Month`, Fees, `Type`, Status) %>%
+  arrange(`Year-Month`) %>%
+  pivot_wider(names_from = `Year-Month`, values_from = Fees, values_fn = sum) %>%
+  arrange(Type, Status) %>%
+  remove_empty(which = "rows", quiet = FALSE)
 
 ##on hold for now
 # unpaid <- violations %>%
@@ -97,8 +113,9 @@ status <- violations %>%
 
 export_excel(issued, "Issued", paste0("outputs/Camera Violations ", Sys.Date() ,".xlsx"), "new")
 export_excel(paid, "Paid", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
-export_excel(unpaid, "Unpaid", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
-export_excel(lost_rev, "Lost Revenue", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
+export_excel(status_count, "Status", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
+# export_excel(unpaid, "Unpaid", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
+# export_excel(lost_rev, "Lost Revenue", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 
 ##filtered for FY end ====
 # violations_FY22 <- violations %>% filter(`Year-Month` < "2022-07")
