@@ -14,11 +14,12 @@ devtools::load_all("G:/Analyst Folders/Sara Brumfield/_packages/bbmR")
 
 #This is how you normally input data
 
-data <- import("L:/BBMR_CSV_FILE_20230104.CSV")
+data <- import("L:/BBMR_CSV_FILE_20230202.CSV")
 
 violations <- data %>%
   mutate_at(vars(ends_with("DATE")), ymd) %>% 
   ##filter out data from previous FYs starting Feb 2023
+  filter(`VIOL DATE` >= "2022-07-01") %>%
   mutate(Fees = case_when(`VIOL CODE` %in% c(30, 31) ~ 75,
                           `VIOL CODE` %in% c(32, 33, 34, 35) ~ 40,
                           `VIOL CODE` == 36 ~ 0,
@@ -32,9 +33,10 @@ violations <- data %>%
                           `VIOL CODE` == 33 ~ "No Description",
                           `VIOL CODE` == 34 ~ "No Description",
                           `VIOL CODE` == 35 ~ "No Description",
-                          `VIOL CODE` == 36 ~ "No Description",
-                          `VIOL CODE` == 37 ~ "No Description",
-                          `VIOL CODE` == 38 ~ "No Description",
+                          `VIOL CODE` == 36 ~ "Truck Overheight Warning Notice",
+                          `VIOL CODE` == 37 ~ "Truck Overheight Second Violation",
+                          `VIOL CODE` == 38 ~ "Truck Overheight Third or Subsequent Violation",
+                          `VIOL CODE` == 39 ~ "Interstate 83",
                           `VIOL CODE` == 2 ~ "No Stopping or No Parking Pimlico Event",
                           `VIOL CODE` == 3 ~ "Obstruct/Impeding Flow of Traffic",
                           `VIOL CODE` == 99 ~ "All Other Stopping or Parking Violations",
@@ -80,6 +82,7 @@ status_fees <- violations %>%
   remove_empty(which = "rows", quiet = FALSE)
 
 ##on hold for now
+##will need full dataset not just current FY for this section
 # unpaid <- violations %>%
 #   select(CITATION, TAG, Type, `VIOL DATE`, Status, Year) %>%
 #   filter(Status != "Paid in full" & Status != "Balance abated (paid)") %>%
@@ -113,7 +116,8 @@ status_fees <- violations %>%
 
 export_excel(issued, "Issued", paste0("outputs/Camera Violations ", Sys.Date() ,".xlsx"), "new")
 export_excel(paid, "Paid", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
-export_excel(status_count, "Status", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
+export_excel(status_count, "Status Count", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
+export_excel(status_fees, "Status Fees", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 # export_excel(unpaid, "Unpaid", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 # export_excel(lost_rev, "Lost Revenue", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 
