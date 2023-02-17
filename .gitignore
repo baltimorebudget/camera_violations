@@ -12,3 +12,5 @@ inputs/city_council_dist.shp
 *.pper
 *.Rdata
 .Rproj.user
+.Rhistory
+.Rproj.user/8AF83641/sources/prop/65A8DF06

@@ -136,7 +136,7 @@ tags <- violations %>%
 export_excel(issued, "Issued (Viol Date)", paste0("outputs/Camera Violations ", Sys.Date() ,".xlsx"), "new")
 export_excel(paid, "Paid (Paid Date)", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 export_excel(status_count, "Status # (Viol Date)", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
-export_excel(status_fees, "Status $ (Paid Date)", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
+export_excel(status_fees, "Status # (Paid Date)", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 export_excel(unpaid, "Unpaid", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 export_excel(lost_rev, "Lost Revenue", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 export_excel(tags, "Repeat Tags", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
