@@ -59,6 +59,7 @@ violations <- violations %>% mutate(`Violation Year` = format(`VIOL DATE`, forma
                                     `Paid Month` = format(`PAID DATE`, format = "%m"),
                                     `Paid Year-Month` = format(`PAID DATE`, format = "%Y-%m"))
 
+## number issued citations for current FY by violation date
 issued <- violations %>% 
   ##filter out data from previous FYs starting Feb 2023
   filter(`VIOL DATE` >= "2022-07-01") %>%
@@ -66,14 +67,23 @@ issued <- violations %>%
   arrange(`Violation Year-Month`) %>%
   pivot_wider(names_from = `Violation Year-Month`, values_from = CITATION, values_fn = list(CITATION = length))
 
-paid <- violations %>%
+## number of paid citations for all data by paid date
+paid_date <- violations %>%
   filter(Status %in% c("Paid in full", "Balance abated (paid)")) %>%
   select(`Paid Year-Month`, `CITATION`, `Type`, Status, LOCATION) %>%
   arrange(`Paid Year-Month`) %>%
   pivot_wider(names_from = `Paid Year-Month`, values_from = CITATION, values_fn = list(CITATION = length)) %>%
   rename(`No Paid Date` = `NA`)
 
-status_count <- violations %>%
+## number of paid citations for all data by violation date
+paid_violation_date <- violations %>%
+  filter(Status %in% c("Paid in full", "Balance abated (paid)")) %>%
+  select(`Violation Year-Month`, `CITATION`, `Type`, Status, LOCATION) %>%
+  arrange(`Violation Year-Month`) %>%
+  pivot_wider(names_from = `Violation Year-Month`, values_from = CITATION, values_fn = list(CITATION = length))
+
+## number of citations in current FY by violation date and current status
+status_viol <- violations %>%
   filter(`VIOL DATE` >= "2022-07-01") %>%
   select(`Violation Year-Month`, `CITATION`, `Type`, Status) %>%
   arrange(`Violation Year-Month`) %>%
@@ -81,11 +91,12 @@ status_count <- violations %>%
   arrange(Type, Status) %>%
   remove_empty(which = "rows", quiet = FALSE)
 
-status_fees <- violations %>%
+## number of citations for current FY by paid date and current status
+status_paid <- violations %>%
   filter(`PAID DATE` >= "2022-07-01") %>%
-  select(`Paid Year-Month`, Fees, `Type`, Status) %>%
+  select(`Paid Year-Month`, CITATION, `Type`, Status) %>%
   arrange(`Paid Year-Month`) %>%
-  pivot_wider(names_from = `Paid Year-Month`, values_from = Fees, values_fn = sum) %>%
+  pivot_wider(names_from = `Paid Year-Month`, values_from = CITATION, values_fn = list(CITATION = length)) %>%
   arrange(Type, Status) %>%
   remove_empty(which = "rows", quiet = FALSE)
 
@@ -133,10 +144,11 @@ tags <- violations %>%
 
 # file_path = "G:/BBMR - Revenue Team/2. Revenue Accounts/A001 - General Fund/191-193 - Speed - Red-Light Violations"
 
-export_excel(issued, "Issued (Viol Date)", paste0("outputs/Camera Violations ", Sys.Date() ,".xlsx"), "new")
-export_excel(paid, "Paid (Paid Date)", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
-export_excel(status_count, "Status # (Viol Date)", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
-export_excel(status_fees, "Status # (Paid Date)", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
+export_excel(issued, "# Issued (Viol Date)", paste0("outputs/Camera Violations ", Sys.Date() ,".xlsx"), "new")
+export_excel(paid_date, "# Paid (Paid Date)", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
+export_excel(paid_violation_date, "# Paid (Viol Date)", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
+export_excel(status_viol, "Status # (Viol Date)", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
+export_excel(status_paid, "Status # (Paid Date)", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 export_excel(unpaid, "Unpaid", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 export_excel(lost_rev, "Lost Revenue", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
 export_excel(tags, "Repeat Tags", paste0("outputs/Camera Violations ", Sys.Date(), ".xlsx"), "existing")
